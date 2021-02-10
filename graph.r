@@ -1,84 +1,58 @@
 #!/usr/bin/env Rscript
 
-issues <- read.csv('issues.csv')
-transitions <- read.csv('transitions.csv')
-iterations <- read.csv('iterations.csv')
-
-transitions <- transitions[ order(transitions$issue, transitions$date), ]
-transitions$from <- NULL
-
-# Group transitions by the column the story moved to
-transitions <- aggregate(. ~ issue + to, transitions, c)
-# We want the very last date a story ends up in Done, if there are several
-transitions[transitions$to == 'Done', 'date'] <- sapply(transitions[transitions$to == 'Done', 'date'], tail, 1)
-# For every other column, we want the first moment the story arrives there
-transitions$date <- sapply(transitions$date, head, 1)
-transitions$date <- as.POSIXct(transitions$date)
-# Flatten the data into one row per issue
-transitions <- reshape(transitions, direction='wide', timevar='to', idvar='issue', v.names='date')
-
-# Time between In Progress and Done is one of our more interesting stats
-transitions$days.in.progress <- as.numeric((transitions$date.Done - transitions[['date.In Progress']]) / 86400)
-# Restrict to only stories which are complete
-transitions <- subset(transitions, !is.na(date.Done))
-
-# Join flattened transitions into the issues dataset
-raw <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
-
-
-# Add in iterations
-iterations <- subset(iterations, state == 'closed')
-iterations$state <- NULL
-names(iterations) <- c('iteration', 'iteration.start', 'iteration.end')
-raw <- merge(raw, iterations, by=c())
-raw <- subset(raw, date.Done >= iteration.start & date.Done < iteration.end)
-
-# Write out the full, combined dataset
-write.csv(raw, 'combined.csv', row.names=FALSE)
-
-
-# Group things by iteration, getting ready to plot it
-iteration.stats <- raw[ c('days.in.progress', 'points', 'iteration', 'iteration.end') ]
-iteration.stats <- aggregate(. ~ iteration, iteration.stats, c, simplify=FALSE)
-iteration.stats$iteration.end <- sapply(iteration.stats$iteration.end, head, 1)
-iteration.stats$iteration.end <- as.Date(iteration.stats$iteration.end)
-iteration.stats$days.in.progress <- sapply(iteration.stats$days.in.progress, as.numeric)
-iteration.stats$points <- sapply(iteration.stats$points, as.numeric)
-
-# Produce a single nice plottable dataset
-analysis <- data.frame(
-  iteration=iteration.stats$iteration,
-  iteration.start=iteration.stats$iteration.end,
-  cycle.time=sapply(iteration.stats$days.in.progress, mean),
-  stories=sapply(iteration.stats$days.in.progress, length),
-  points=sapply(iteration.stats$points, sum)
-)
-
-
 library('ggplot2')
 pdf('graphs.pdf')
 
+iterations <- read.csv('augmented/iterations.full.csv')
+full.issues <- read.csv('augmented/issues.full.csv')
+iteration.stories <- read.csv('augmented/iteration.stories.csv')
+iteration.completions <- read.csv('augmented/iteration.completions.csv')
+full.issues$in.iterations <- sapply(full.issues$in.iterations, strsplit, ';')
+
+# Group things by iteration, getting ready to plot it
+iteration.end.stats <- full.issues[ c('days.in.progress', 'points', 'completed.during') ]
+names(iteration.end.stats) <- c('cycle.time', 'points.completed', 'iteration')
+iteration.end.stats <- aggregate(. ~ iteration, iteration.end.stats, c, simplify=FALSE)
+iteration.end.stats$stories.completed <- sapply(iteration.end.stats$points.completed, length)
+iteration.end.stats$points.completed <- sapply(iteration.end.stats$points.completed, sum, na.rm=T)
+iteration.end.stats$cycle.time <- sapply(iteration.end.stats$cycle.time, mean)
+
+
+iteration.stats <- merge(iterations, iteration.end.stats, by.x='name', by.y='iteration')
+iteration.stats$end <- sapply(iteration.stats$end, head, 1)
+iteration.stats$end <- as.Date(iteration.stats$end)
+iteration.stats$start <- as.Date(iteration.stats$start)
+
 # Plot the data in a simple way
-ggplot(analysis, aes(x=iteration.start)) +
+ggplot(iteration.stats, aes(x=start)) +
   theme(axis.text.x=element_text(angle=30, hjust=1),
       axis.title.y=element_blank(),
       legend.position='top',
       plot.title=element_text(hjust = 0.5)) +
+  guides(colour=guide_legend(nrow=2, byrow=TRUE)) +
   xlab('Iteration start date') +
-  ggtitle('First draft of iteration stats') +
-  scale_x_date(breaks=analysis$iteration.start, labels=analysis$iteration) +
+  ggtitle('Second draft of iteration stats') +
+  scale_x_date(breaks=iteration.stats$start, labels=iteration.stats$name) +
+  geom_line(aes(y=points, colour='Story points in sprint')) +
+  geom_line(aes(y=points, colour='Story points in sprint')) +
   geom_line(aes(y=cycle.time, colour='Cycle time in days')) +
-  geom_line(aes(y=stories, colour='Stories completed')) +
-  geom_vline(aes(xintercept=iteration.start), size=0.1) +
-  geom_line(aes(y=points, colour='Story points completed'))
+  geom_line(aes(y=stories, colour='Stories in sprint')) +
+  geom_line(aes(y=stories.completed, colour='Stories completed')) +
+  geom_line(aes(y=points.completed, colour='Story points completed')) +
+  geom_vline(aes(xintercept=start), size=0.1)
 
-ggplot(raw[!is.na(raw$points),], aes(x=points, y=days.in.progress)) +
+ggplot(full.issues[!is.na(full.issues$points),], aes(x=points, y=days.in.progress)) +
   xlab('Story points (estimated)') +
   ylab('Days in progress') +
   labs(
-    title='We have the worst estimates',
-    subtitle=paste0('Correlation value: ',
-      round(cor(raw$points, raw$days.in.progress, use='pairwise.complete.obs'), 2))) +
+    title='Accuracy of estimates',
+    subtitle=paste0('Correlation: ',
+      round(
+        cor(
+          full.issues$points,
+          full.issues$days.in.progress,
+          use='pairwise.complete.obs'),
+        2))) +
   theme(legend.position='top',
       plot.title=element_text(hjust = 0.5),
       plot.subtitle=element_text(hjust = 0.5)) +

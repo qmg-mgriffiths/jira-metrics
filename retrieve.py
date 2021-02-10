@@ -35,13 +35,16 @@ def retrieve_all(base_url: str, get_items, simplify_items):
         try:
             url = base_url + '&startAt=' + str(start) + '&maxResults=' + str(RESULTS_PER_PAGE)
             print("Page {} ({}-{}): {}".format(
-                page, start, start+50, url), file=sys.stderr)
+                page, start, start + RESULTS_PER_PAGE, url), file=sys.stderr)
             response = retrieve(url)
             new_data = get_items(response)
             new_data = [ simplify_items(item) for item in new_data ]
+            total_results = response['total'] if 'total' in response else None
             if (len(new_data) == 0):
                 break
             all_data.extend(new_data)
+            if total_results is not None and total_results < start + RESULTS_PER_PAGE:
+                break
             page = page + 1
             start = start + RESULTS_PER_PAGE
             if LIMIT_API_CALLS and page > 0:
@@ -108,11 +111,16 @@ def board(name):
 
 # Simplify the dict relating to a sprint to just store iteration info
 def sprint_details(details):
+    issue_keys = retrieve_all(
+        'https://policy-expert.atlassian.net/rest/agile/1.0/sprint/{}/issue?'.format(details['id']),
+        lambda row: row['issues'],
+        lambda row: row['key'])
     return {
         'name': details['name'] if 'name' in details else None,
         'start': details['startDate'] if 'startDate' in details else None,
         'end': details['completeDate'] if 'completeDate' in details else None,
-        'state': details['state'] if 'state' in details else None
+        'state': details['state'] if 'state' in details else None,
+        'issues': ';'.join(issue_keys)
     }
 
 def sprints(board_name):
