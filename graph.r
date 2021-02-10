@@ -18,10 +18,16 @@ iteration.end.stats$points.completed <- sapply(iteration.end.stats$points.comple
 iteration.end.stats$cycle.time <- sapply(iteration.end.stats$cycle.time, mean)
 
 
-iteration.stats <- merge(iterations, iteration.end.stats, by.x='name', by.y='iteration')
+iteration.stats <- merge(iterations, iteration.end.stats, by.x='name', by.y='iteration', all.x=T)
 iteration.stats$end <- sapply(iteration.stats$end, head, 1)
 iteration.stats$end <- as.Date(iteration.stats$end)
 iteration.stats$start <- as.Date(iteration.stats$start)
+
+line.and.smooth <- function(variable, colour) list(
+  geom_line(aes(y=.data[[variable]], colour=colour), size=0.3),
+  geom_smooth(
+    aes(y=.data[[variable]], colour=colour),
+    method='lm', linetype='dashed', formula = y ~ x, se=FALSE))
 
 # Plot the data in a simple way
 ggplot(iteration.stats, aes(x=start)) +
@@ -31,14 +37,13 @@ ggplot(iteration.stats, aes(x=start)) +
       plot.title=element_text(hjust = 0.5)) +
   guides(colour=guide_legend(nrow=2, byrow=TRUE)) +
   xlab('Iteration start date') +
-  ggtitle('Second draft of iteration stats') +
+  ggtitle('Third draft of iteration stats') +
   scale_x_date(breaks=iteration.stats$start, labels=iteration.stats$name) +
-  geom_line(aes(y=points, colour='Story points in sprint')) +
-  geom_line(aes(y=points, colour='Story points in sprint')) +
-  geom_line(aes(y=cycle.time, colour='Cycle time in days')) +
-  geom_line(aes(y=stories, colour='Stories in sprint')) +
-  geom_line(aes(y=stories.completed, colour='Stories completed')) +
-  geom_line(aes(y=points.completed, colour='Story points completed')) +
+  line.and.smooth('points', 'Story points in sprint') +
+  line.and.smooth('cycle.time', 'Cycle time in days') +
+  line.and.smooth('stories', 'Stories in sprint') +
+  line.and.smooth('stories.completed', 'Stories completed') +
+  line.and.smooth('points.completed', 'Story points completed') +
   geom_vline(aes(xintercept=start), size=0.1)
 
 ggplot(full.issues[!is.na(full.issues$points),], aes(x=points, y=days.in.progress)) +
