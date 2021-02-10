@@ -21,13 +21,6 @@ transitions <- reshape(transitions, direction='wide', timevar='to', idvar='issue
 # Time between In Progress and Done is one of our more interesting stats
 transitions$days.in.progress <- as.numeric((transitions$date.Done - transitions[['date.In Progress']]) / 86400)
 
-# Restrict to only stories which are complete
-# transitions <- subset(transitions, !is.na(date.Done))
-#  => not having ever reached Done should of course return NA
-
-# TODO then write a README and Makefile, with a docker (or dojo) command to
-#  run the script using trovediary/r-base
-
 # Join flattened transitions into the issues dataset
 full.issues <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
 
@@ -50,17 +43,67 @@ iteration.completions <- subset(iteration.completions, date.Done >= start & date
 iteration.completions <- iteration.completions[ c('id', 'name') ]
 names(iteration.completions) <- c('issue', 'completed.during')
 
-iteration.points <- merge(iteration.stories[c('in.iterations', 'issue')], full.issues[c('id', 'points')], by.x='issue', by.y='id')
+# Join the two new datasets into one behemoth
+full.issues <- merge(full.issues, iteration.stories.by.issue, by.x='id', by.y='issue', all.x=T)
+full.issues <- merge(full.issues, iteration.completions, by.x='id', by.y='issue', all.x=T)
+
+iteration.end.stats <- full.issues[ c('days.in.progress', 'points', 'completed.during') ]
+names(iteration.end.stats) <- c('cycle.time', 'completed.points', 'iteration')
+iteration.end.stats <- aggregate(. ~ iteration, iteration.end.stats, c, simplify=FALSE)
+iteration.end.stats$completed.stories <- sapply(iteration.end.stats$completed.points, length)
+iteration.end.stats$completed.points <- sapply(iteration.end.stats$completed.points, sum, na.rm=T)
+iteration.end.stats$cycle.time <- sapply(iteration.end.stats$cycle.time, mean)
+iterations <- merge(iterations, iteration.end.stats, by.x='name', by.y='iteration', all.x=T)
+iterations[
+  is.na(iterations$cycle.time),
+  c('completed.points', 'completed.stories')
+] <- 0
+
+iteration.backlog <- merge(iterations[c('name', 'end')], issues[c('id', 'created', 'status', 'points')])
+iteration.backlog <- subset(iteration.backlog, created < end & status != 'Done')
+iteration.backlog <- iteration.backlog[ c('name', 'points')]
+iteration.backlog <- aggregate(. ~ name, iteration.backlog, c, na.action=na.pass)
+iteration.backlog$stories <- sapply(iteration.backlog$points, length)
+iteration.backlog$points <- sapply(iteration.backlog$points, sum, na.rm=T)
+names(iteration.backlog) <- c('iteration', 'backlog.points', 'backlog.stories')
+iterations <- merge(iterations, iteration.backlog, by.x='name', by.y='iteration')
+
+iteration.points <- merge(
+  iteration.stories[c('in.iterations', 'issue')],
+  full.issues[c('id', 'points')],
+  by.x='issue', by.y='id')
 iteration.points$issue <- NULL
 iteration.points <- aggregate(. ~ in.iterations, iteration.points, c, na.action=na.pass)
 iteration.points$stories <- sapply(iteration.points$points, length)
 iteration.points$points <- sapply(iteration.points$points, sum, na.rm=T)
-iterations <- merge(iterations, iteration.points, by.x='name', by.y='in.iterations')
-iterations
+names(iteration.points) <- c('iteration', 'included.points', 'included.stories')
+iterations <- merge(iterations, iteration.points, by.x='name', by.y='iteration')
 
-# Join the two new datasets into one behemoth
-full.issues <- merge(full.issues, iteration.stories.by.issue, by.x='id', by.y='issue')
-full.issues <- merge(full.issues, iteration.completions, by.x='id', by.y='issue')
+iterations <- iterations[ order(iterations$start), ]
+row.names(iterations) <- c(1:nrow(iterations))
+
+calculate.change.for <- function(data.col, iterations) {
+  change.col <- paste0(data.col,'.change')
+
+  change <- rep(NA, nrow(iterations))
+  # Calculate diff between row n and n-1, as a percentage of row n's value
+  change[-1] <-
+    (iterations[-1, data.col] - iterations[-nrow(iterations), data.col]) /
+    iterations[-nrow(iterations), data.col] * 100
+  # Wipe any null values
+  change[ is.nan(change) | is.infinite(change) ] <- NA
+
+  iterations[[change.col]] <- change
+  iterations
+}
+# Calculate diffs for various stats across iterations
+for (attr in c('stories', 'points')) {
+  for (field in c('included', 'completed', 'backlog')) {
+    data.col <- paste0(field,'.',attr)
+    iterations <- calculate.change.for(data.col, iterations)
+  }
+}
+iterations <- calculate.change.for('cycle.time', iterations)
 
 # Write out all three relatively-intelligent datasets
 full.issues.output <- full.issues

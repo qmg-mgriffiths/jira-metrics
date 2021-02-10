@@ -58,6 +58,7 @@ def retrieve_all(base_url: str, get_items, simplify_items):
 def issue_details(details):
     return {
         'id': details['key'],
+        'created': details['fields']['created'],
         'status': details['fields']['status']['name'],
         'priority': details['fields']['priority']['id'],
         'priority_name': details['fields']['priority']['name'],
