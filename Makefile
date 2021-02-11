@@ -1,5 +1,5 @@
-R=docker run -it --rm -v ~/.aws/:/root/.aws/ -v $$PWD:/host -w /host r-base
-R_GGPLOT=docker run -it --rm -v ~/.aws/:/root/.aws/ -v $$PWD:/host -w /host rocker/tidyverse
+R=docker run -it --rm -v $$PWD:/host -w /host r-base:4.0.0
+R_GGPLOT=docker run -it --rm -v $$PWD:/host -w /host rocker/tidyverse:4.0.0
 
 CONFIG=.apikey .board .email .project .jira-url
 
