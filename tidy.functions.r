@@ -21,7 +21,7 @@ flatten.transitions <- function(transitions) {
 
 analyse.estimates <- function(issues) {
   if (all(is.na(issues$points))) {
-    cat('Error: no available estimates. Check the custom field in the API call processor.')
+    cat('Error: no stories appear to have estimates. Check retrieve.py or add some estimates.\n')
     quit(status=1)
   }
   points <- data.frame(

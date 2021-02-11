@@ -6,14 +6,17 @@ import json
 from pprint import pprint
 from urllib.parse import urlencode
 
-def email():
-    return 'mmccaffery@qmetric.co.uk'
-def apikey():
-    with open('.apikey', 'r') as apikey_file:
-        return apikey_file.read().replace('\n', '')
+def config(name: str):
+    with open('.' + name, 'r') as config_file:
+        return config_file.read().replace('\n', '')
 
-EMAIL = email()
-PASSWORD = apikey()
+ESTIMATE_FIELDS = ['customfield_10026', 'customfield_10016']
+
+EMAIL = config('email')
+PASSWORD = config('apikey')
+PROJECT = config('project')
+BOARD = config('board')
+JIRA = config('jira-url').rstrip('/')
 RESULTS_PER_PAGE = 50
 
 # Debug only: run only one API call per query type, even if multiple would be needed.
@@ -21,7 +24,7 @@ LIMIT_API_CALLS = False
 
 # Send off an API request
 def retrieve(url: str):
-    response = requests.get(url, auth=(EMAIL, PASSWORD))
+    response = requests.get(JIRA + url, auth=(EMAIL, PASSWORD))
     if response.status_code != 200:
         raise Exception('Received status ' + str(response.status_code) + ' from ' + url)
     return response.json()
@@ -34,8 +37,8 @@ def retrieve_all(base_url: str, get_items, simplify_items):
     while True:
         try:
             url = base_url + '&startAt=' + str(start) + '&maxResults=' + str(RESULTS_PER_PAGE)
-            print("Page {} ({}-{}): {}".format(
-                page, start, start + RESULTS_PER_PAGE, url), file=sys.stderr)
+            print("Page {} ({}-{}): {}{}".format(
+                page, start, start + RESULTS_PER_PAGE, JIRA, url), file=sys.stderr)
             response = retrieve(url)
             new_data = get_items(response)
             new_data = [ simplify_items(item) for item in new_data ]
@@ -49,10 +52,29 @@ def retrieve_all(base_url: str, get_items, simplify_items):
             start = start + RESULTS_PER_PAGE
             if LIMIT_API_CALLS and page > 0:
                 break
+        except ValueError as e:
+            raise e
         except Exception as e:
             print(e)
             break
     return all_data
+
+def prompt_for_estimate_field():
+    fields = retrieve("/rest/api/2/field")
+    pprint([{
+        'id': field['id'],
+        'name': field['name']
+    } for field in fields])
+    print("* Please check the above data structure for an estimate field,")
+    print("* then add its 'id' to ESTIMATE_FIELDS in retrieve.py.")
+    raise ValueError('No estimate field found')
+
+def issue_estimate(details):
+    for field in ESTIMATE_FIELDS:
+        if field in details['fields'].keys():
+            return details['fields'][field]
+    prompt_for_estimate_field()
+
 
 # Simplify the dict relating to an issue
 def issue_details(details):
@@ -63,11 +85,7 @@ def issue_details(details):
         'priority': details['fields']['priority']['id'],
         'priority_name': details['fields']['priority']['name'],
         'type': details['fields']['issuetype']['name'],
-        'points': details['fields']['customfield_10026']
-            if 'customfield_10026' in details['fields'].keys()
-            else details['fields']['customfield_10016']
-                if 'customfield_10016' in details['fields'].keys()
-                else None,
+        'points': issue_estimate(details),
         'assignee': details['fields']['assignee']['displayName']
             if details['fields']['assignee'] is not None
             else None
@@ -75,12 +93,12 @@ def issue_details(details):
 
 # Retrieve meaningful details of the given issue
 def issue(issue_id):
-    details = retrieve('https://policy-expert.atlassian.net/rest/api/2/issue/' + issue_id)
+    details = retrieve(JIRA + '/rest/api/2/issue/' + issue_id)
     return issue_details(issue_id)
 
 # Retrieve meaningful details of all issues matching the given JQL
 def issues(jql):
-    return retrieve_all('https://policy-expert.atlassian.net/rest/api/2/search?jql=' + jql,
+    return retrieve_all('/rest/api/2/search?jql=' + jql,
         lambda obj: obj['issues'],
         issue_details)
 
@@ -101,7 +119,7 @@ def transitions_of(issue_details):
 # Retrieve meaningful details of all transitions of all issues matching search query
 def transitions(jql):
     all_changesets = retrieve_all(
-        'https://policy-expert.atlassian.net/rest/api/2/search?jql=' + jql + '&expand=changelog',
+        '/rest/api/2/search?jql=' + jql + '&expand=changelog',
         lambda row: row['issues'],
         transitions_of)
     return [ changeset for issue_changesets in all_changesets
@@ -109,13 +127,13 @@ def transitions(jql):
 
 # Retrieve metadata about a given board
 def board(name):
-    details = retrieve('https://policy-expert.atlassian.net/rest/agile/1.0/board?' + urlencode({ 'name': name }))
+    details = retrieve('/rest/agile/1.0/board?' + urlencode({ 'name': name }))
     return details['values'][0]
 
 # Simplify the dict relating to a sprint to just store iteration info
 def sprint_details(details):
     issue_keys = retrieve_all(
-        'https://policy-expert.atlassian.net/rest/agile/1.0/sprint/{}/issue?'.format(details['id']),
+        '/rest/agile/1.0/sprint/{}/issue?'.format(details['id']),
         lambda row: row['issues'],
         lambda row: row['key'])
     return {
@@ -129,7 +147,7 @@ def sprint_details(details):
 def sprints(board_name):
     board_details = board(board_name)
     return retrieve_all(
-        'https://policy-expert.atlassian.net/rest/agile/1.0/board/{}/sprint?'.format(board_details['id']),
+        '/rest/agile/1.0/board/{}/sprint?'.format(board_details['id']),
         lambda row: row['values'],
         sprint_details)
 
@@ -155,13 +173,13 @@ def write(name, dataset):
 
 # Retrieve actual detail
 
-iterations = sprints('Car Data Extraction workstream')
+# issues = issue('CAR-256')
+issues = issues('project=' + PROJECT)
+write('issues', issues)
+
+iterations = sprints(BOARD)
 write('iterations', iterations)
 
 # Warning: this will send off quite a number of API calls
-changes = transitions('project=Car') # &status=Done
+changes = transitions('project=' + PROJECT) # &status=Done
 write('transitions', changes)
-
-# issues = issue('CAR-256')
-issues = issues('project=Car')
-write('issues', issues)

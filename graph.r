@@ -10,12 +10,11 @@ iteration.stories <- read.csv('augmented/iteration.stories.csv')
 
 if (length(which(estimates$count <= 1))) {
   cat(paste('Warning: omitting',length(which(estimates$count <= 1)), 'estimate value(s) used by just one story:\n'))
-  print(subset(estimates, count <= 1))
+  print(subset(estimates[ c('estimate', 'count') ], count <= 1))
   estimates <- subset(estimates, count > 1)
 }
 estimate.config <- list(
   theme(axis.text.x=element_text(angle=30, hjust=1),
-      axis.title.y=element_blank(),
       legend.position='top',
       plot.title=element_text(hjust = 0.5),
       plot.subtitle=element_text(hjust = 0.5)),
@@ -25,6 +24,7 @@ estimate.config <- list(
     labels=paste0(estimates$estimate, ' (×',estimates$count,')')),
   ylab('Actual cycle time'),
   xlab('Story points estimated'))
+
 
 # Deserialise complicated data types
 full.issues$in.iterations <- sapply(full.issues$in.iterations, strsplit, ';')
@@ -54,7 +54,7 @@ corr.graph <- ggplot(corrs, aes(x=field)) +
   geom_point(aes(y=gradient, colour=type)) +
   geom_point(aes(y=correlation, colour=type))
 # print(corr.graph)
-print(corrs)
+print(corrs[c('gradient', 'correlation')])
 
 line.and.smooth <- function(variable, colour) list(
   geom_line(aes(y=.data[[variable]], colour=colour), size=0.3, na.rm=T),
@@ -111,7 +111,6 @@ ggplot(iterations, aes(x=start)) +
   ggtitle('Evolving backlog size') +
   line.and.smooth('backlog.stories', 'Stories in backlog') +
   line.and.smooth('backlog.points', 'Story points in backlog')
-
 
 points <- full.issues[c('points', 'days.in.progress')]
 points <- subset(points, !is.na(points) & !is.na(days.in.progress))

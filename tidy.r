@@ -5,8 +5,6 @@ issues <- read.csv('issues.csv')
 transitions <- read.csv('transitions.csv')
 iterations <- read.csv('iterations.csv')
 
-# TODO error message if no non-null issues$points values
-
 # Join flattened transitions into the issues dataset
 transitions <- flatten.transitions(transitions)
 full.issues <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
