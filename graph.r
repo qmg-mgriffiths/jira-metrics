@@ -5,18 +5,31 @@ pdf('graphs.pdf')
 
 iterations <- read.csv('augmented/iterations.full.csv')
 full.issues <- read.csv('augmented/issues.full.csv')
+estimates <- read.csv('augmented/estimates.csv')
 iteration.stories <- read.csv('augmented/iteration.stories.csv')
-iteration.completions <- read.csv('augmented/iteration.completions.csv')
+
+if (length(which(estimates$count <= 1))) {
+  cat(paste('Warning: omitting',length(which(estimates$count <= 1)), 'estimate value(s) used by just one story:\n'))
+  print(subset(estimates, count <= 1))
+  estimates <- subset(estimates, count > 1)
+}
+estimate.config <- list(
+  theme(axis.text.x=element_text(angle=30, hjust=1),
+      axis.title.y=element_blank(),
+      legend.position='top',
+      plot.title=element_text(hjust = 0.5),
+      plot.subtitle=element_text(hjust = 0.5)),
+  guides(colour=guide_legend(nrow=2, byrow=TRUE)),
+  scale_x_continuous(
+    breaks=estimates$estimate,
+    labels=paste0(estimates$estimate, ' (×',estimates$count,')')),
+  ylab('Actual cycle time'),
+  xlab('Story points estimated'))
 
 # Deserialise complicated data types
 full.issues$in.iterations <- sapply(full.issues$in.iterations, strsplit, ';')
 iterations$end <- as.Date(iterations$end)
 iterations$start <- as.Date(iterations$start)
-
-if (length(which(full.issues$points <= 0))) {
-  cat(paste('Warning: dropping',length(which(full.issues$points <= 0)), 'data point(s) with estimate <= 0\n'))
-  full.issues[ !is.na(full.issues$points) & full.issues$points <= 0, 'points'] <- NA
-}
 
 # Calculate correlations and gradients for fields, just for interest.
 corrs <- data.frame('field'=character(), 'gradient'=numeric(), 'correlation'=numeric())
@@ -66,9 +79,12 @@ ggplot(iterations[-1,], aes(x=start)) +
   ggtitle('Evolution of stories across sprints') +
   theme(axis.title.y=element_text()) + ylab('Percentage increase') +
   line.and.smooth('included.stories.change', 'Stories in sprint') +
-  line.and.smooth('included.points.change', 'Story points in sprint') +
+  # line.and.smooth('included.points.change', 'Story points in sprint') +
   line.and.smooth('backlog.stories.change', 'Stories in backlog') +
   line.and.smooth('backlog.points.change', 'Story points in backlog')
+
+# stddev per story point
+# => boxplots
 
 # Plot evolution of completion of stories across sprints
 ggplot(iterations[-1,], aes(x=start)) +
@@ -100,11 +116,11 @@ ggplot(iterations, aes(x=start)) +
 points <- full.issues[c('points', 'days.in.progress')]
 points <- subset(points, !is.na(points) & !is.na(days.in.progress))
 points <- points[order(points$points, points$days.in.progress), ]
+points <- points[ points$points %in% estimates$estimate, ]
 ggplot(points, aes(x=points, y=days.in.progress)) +
-  xlab('Story points (estimated)') +
-  ylab('Days in progress') +
+  estimate.config +
   labs(
-    title='Accuracy of estimates',
+    title='Estimate accuracy, by stories',
     subtitle=paste0('Correlation: ',
       round(
         cor(
@@ -112,8 +128,12 @@ ggplot(points, aes(x=points, y=days.in.progress)) +
           points$days.in.progress,
           use='pairwise.complete.obs'),
         2))) +
-  theme(legend.position='top',
-      plot.title=element_text(hjust = 0.5),
-      plot.subtitle=element_text(hjust = 0.5)) +
+  geom_boxplot(aes(group=points)) +
   geom_point() +
   geom_smooth(method='lm', formula= y ~ x)
+
+ggplot(estimates, aes(x=estimate)) +
+  estimate.config + ggtitle('Estimate accuracy, by estimate') +
+  geom_bar(aes(y=mean, fill='Average cycle time'), stat='identity') +
+  geom_point(aes(y=interquartile, shape='Interquartile range'), size=3, na.rm=T) +
+  geom_point(aes(y=stddev, shape='Standard deviation'), size=3, na.rm=T)

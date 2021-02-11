@@ -65,7 +65,9 @@ def issue_details(details):
         'type': details['fields']['issuetype']['name'],
         'points': details['fields']['customfield_10026']
             if 'customfield_10026' in details['fields'].keys()
-            else None,
+            else details['fields']['customfield_10016']
+                if 'customfield_10016' in details['fields'].keys()
+                else None,
         'assignee': details['fields']['assignee']['displayName']
             if details['fields']['assignee'] is not None
             else None
