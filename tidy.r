@@ -11,6 +11,10 @@ full.issues <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
 
 points <- analyse.estimates(full.issues)
 
+full.issues <- reject.outlier.issues(full.issues, points)
+# Re-calculate estimate metadata in case any issues' estimates were rejected
+points <- analyse.estimates(full.issues)
+
 # Restrict iterations to those that have finished
 iterations <- subset(iterations, state == 'closed')
 iterations$state <- NULL

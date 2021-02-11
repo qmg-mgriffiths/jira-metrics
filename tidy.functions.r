@@ -36,6 +36,20 @@ analyse.estimates <- function(issues) {
   points
 }
 
+reject.outlier.issues <- function(issues, estimates) {
+  outlier.issues <- merge(
+    issues[c('id', 'days.in.progress', 'points')],
+    estimates[c('estimate', 'mean', 'stddev')],
+    by.x='points', by.y='estimate')
+  outlier.issues <- subset(outlier.issues, days.in.progress > mean + (2 * stddev))
+  if (nrow(outlier.issues) > 0) {
+    cat(paste0("Warning: ignoring the estimates of the following extreme outliers:\n"))
+    print(outlier.issues[ c('id', 'points', 'days.in.progress') ])
+    issues[ full.issues$id %in% outlier.issues$id, 'points' ] <- NA
+  }
+  issues
+}
+
 calculate.iteration.stories <- function(iterations, issues) {
   # Produce a standalone dataset linking issues with iterations they were included in
   iterations$issues <- sapply(iterations$issues, strsplit, ';')
