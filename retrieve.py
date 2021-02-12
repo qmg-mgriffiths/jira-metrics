@@ -26,7 +26,7 @@ LIMIT_API_CALLS = False
 def retrieve(url: str):
     response = requests.get(JIRA + url, auth=(EMAIL, PASSWORD))
     if response.status_code != 200:
-        raise Exception('Received status ' + str(response.status_code) + ' from ' + url)
+        raise Exception('Received status ' + str(response.status_code) + ' from ' + JIRA + url)
     return response.json()
 
 # Send off a series of API requests, incrementing 'start' each time, until they return nothing
@@ -82,8 +82,8 @@ def issue_details(details):
         'id': details['key'],
         'created': details['fields']['created'],
         'status': details['fields']['status']['name'],
-        'priority': details['fields']['priority']['id'],
-        'priority_name': details['fields']['priority']['name'],
+        'priority': details['fields']['priority']['id'] if details['fields']['priority'] is not None else None,
+        'priority_name': details['fields']['priority']['name'] if details['fields']['priority'] is not None else None,
         'type': details['fields']['issuetype']['name'],
         'points': issue_estimate(details),
         'assignee': details['fields']['assignee']['displayName']
@@ -153,6 +153,8 @@ def sprints(board_name):
 
 # Write a list of dicts to a CSV file
 def write_csv(filename, dataset):
+    if len(dataset) == 0:
+        raise ValueError("No '{}' data available".format(filename))
     keys = dataset[0].keys()
     filename = filename + '.csv'
     with open(filename, 'w', newline='') as output_file:
@@ -171,7 +173,7 @@ def write(name, dataset):
     write_csv(name, dataset)
     write_json(name, dataset)
 
-# Retrieve actual detail
+# Retrieve all data
 
 # issues = issue('CAR-256')
 issues = issues('project=' + PROJECT)

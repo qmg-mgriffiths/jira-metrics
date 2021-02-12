@@ -8,7 +8,7 @@ view: graphs.pdf
 
 regen: clean view
 
-augmented/iterations.full.csv: tidy.r issues.csv
+augmented/iterations.full.csv: tidy.r tidy.functions.r issues.csv
 	@[ -d $(@D) ] || mkdir $(@D)
 	$(R) ./$<
 
@@ -29,6 +29,30 @@ config-car:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "Car" >.project
 	echo "Car Data Extraction workstream" >.board
+
+regen-home-product: config-home-product view
+config-home-product:
+	echo "https://policy-expert.atlassian.net/" >.jira-url
+	echo "HP" >.project
+	echo "Home Brand Scrum board" >.board
+
+regen-home-tech-debt-bau: config-home-tech-debt-bau view
+config-home-tech-debt-bau:
+	echo "https://policy-expert.atlassian.net/" >.jira-url
+	echo "HTDB" >.project
+	echo "Home Non-Brand Scrum Board" >.board
+
+regen-home-gdpr: config-home-gdpr view
+config-home-gdpr:
+	echo "https://policy-expert.atlassian.net/" >.jira-url
+	echo "HGDPR" >.project
+	echo "GDPR Kanban board" >.board
+
+regen-payments: config-payments view
+config-payments:
+	echo "https://policy-expert.atlassian.net/" >.jira-url
+	echo "PAYM" >.project
+	echo "Scrum World - Payments" >.board
 
 .email:
 	@echo "Please enter the email address you use to log into Jira"

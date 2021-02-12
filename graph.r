@@ -121,12 +121,14 @@ ggplot(points, aes(x=points, y=days.in.progress)) +
   labs(
     title='Estimate accuracy, by stories',
     subtitle=paste0('Correlation: ',
-      round(
-        cor(
-          points$points,
-          points$days.in.progress,
-          use='pairwise.complete.obs'),
-        2))) +
+      tryCatch(
+        round(
+          cor(
+            points$points,
+            points$days.in.progress,
+            use='pairwise.complete.obs'),
+          2),
+        error=function(x) NA))) +
   geom_boxplot(aes(group=points)) +
   geom_point() +
   geom_smooth(method='lm', formula= y ~ x)
