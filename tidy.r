@@ -10,7 +10,6 @@ transitions <- flatten.transitions(transitions)
 full.issues <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
 
 points <- analyse.estimates(full.issues)
-
 full.issues <- reject.outlier.issues(full.issues, points)
 # Re-calculate estimate metadata in case any issues' estimates were rejected
 points <- analyse.estimates(full.issues)
@@ -37,6 +36,12 @@ for (attr in c('stories', 'points')) {
   }
 }
 iterations <- calculate.change.for('cycle.time', iterations)
+
+full.issues <- merge(full.issues, points, by.x='points', by.y='estimate')
+
+full.issues$delta <- full.issues$days.in.progress - full.issues$mean
+
+calculate.cycle.time.deltas(full.issues)
 
 # Write out all three relatively-intelligent datasets
 full.issues.output <- full.issues

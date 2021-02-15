@@ -69,8 +69,8 @@ add.iteration.completions <- function(iterations, issues) {
   iteration.completions <- iterations[ c('name','start','end') ]
   iteration.completions <- merge(iteration.completions, issues[c('id', 'date.Done')], by=c())
   iteration.completions <- subset(iteration.completions, date.Done >= start & date.Done < end)
-  iteration.completions <- iteration.completions[ c('id', 'name') ]
-  names(iteration.completions) <- c('issue', 'completed.during')
+  iteration.completions <- iteration.completions[ c('id', 'name', 'end') ]
+  names(iteration.completions) <- c('issue', 'completed.during', 'iteration.end')
   merge(issues, iteration.completions, by.x='id', by.y='issue', all.x=T)
 }
 
@@ -113,6 +113,15 @@ add.iteration.points <- function(iteration.stories, issues) {
   iteration.points$points <- sapply(iteration.points$points, sum, na.rm=T)
   names(iteration.points) <- c('iteration', 'included.points', 'included.stories')
   iterations <- merge(iterations, iteration.points, by.x='name', by.y='iteration')
+}
+
+
+calculate.cycle.time.deltas <- function(full.issues) {
+  deltas <- full.issues[ order(full.issues$iteration.end, full.issues$delta, decreasing=TRUE),
+    c('id', 'points', 'days.in.progress', 'mean', 'delta', 'completed.during') ]
+  deltas <- deltas[ deltas$delta > 0, ]
+  print(head(deltas, 10))
+  invisible(deltas)
 }
 
 
