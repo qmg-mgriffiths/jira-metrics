@@ -6,8 +6,12 @@ transitions <- read.csv('transitions.csv')
 iterations <- read.csv('iterations.csv')
 
 # Join flattened transitions into the issues dataset
-transitions <- flatten.transitions(transitions)
-full.issues <- merge(issues, transitions, by.x='id', by.y='issue', all.x=T)
+full.issues <- merge(
+  issues,
+  flatten.transitions(transitions),
+  by.x='id', by.y='issue', all.x=T)
+
+full.issues <- add.cycle.time(full.issues, transitions)
 
 points <- analyse.estimates(full.issues)
 full.issues <- reject.outlier.issues(full.issues, points)
@@ -19,11 +23,13 @@ iterations <- subset(iterations, state == 'closed')
 iterations$state <- NULL
 
 iteration.stories <- calculate.iteration.stories(iterations, full.issues)
+
 full.issues <- add.iteration.stories(iteration.stories, full.issues)
 full.issues <- add.iteration.completions(iterations, full.issues)
-iterations <- add.iteration.end.stats(iterations, full.issues)
+
 iterations <- add.iteration.backlogs(iterations, full.issues)
 iterations <- add.iteration.points(iteration.stories, full.issues)
+iterations <- add.iteration.end.stats(iterations, full.issues)
 
 iterations <- iterations[ order(iterations$start), ]
 row.names(iterations) <- c(1:nrow(iterations))
@@ -35,11 +41,14 @@ for (attr in c('stories', 'points')) {
     iterations <- calculate.change.for(data.col, iterations)
   }
 }
+iterations <- calculate.change.for('completed.stories.proportion', iterations)
+iterations <- calculate.change.for('completed.points.proportion', iterations)
+iterations <- calculate.change.for('days.in.progress', iterations)
 iterations <- calculate.change.for('cycle.time', iterations)
 
 full.issues <- merge(full.issues, points, by.x='points', by.y='estimate')
 
-full.issues$delta <- full.issues$days.in.progress - full.issues$mean
+full.issues$delta <- full.issues$days.in.progress - full.issues$estimate.mean
 
 calculate.cycle.time.deltas(full.issues)
 

@@ -73,44 +73,51 @@ iteration.graph <- list(
   xlab('Iteration'),
   geom_vline(aes(xintercept=start), size=0.1))
 
+iteration.change.graph <- c(iteration.graph, list(
+  theme(axis.title.y=element_text()),
+  ylab('Percentage increase'),
+  coord_cartesian(ylim=c(
+    max(-100, min(iterations[
+      names(iterations)[ grepl('\\.change$', names(iterations)) ]
+    ], na.rm=T)),
+    min(100, max(iterations[
+      names(iterations)[ grepl('\\.change$', names(iterations)) ]
+    ], na.rm=T))
+  ))))
+
 # Plot evolution of stories across sprints
-ggplot(iterations[-1,], aes(x=start)) +
-  iteration.graph +
-  ggtitle('Evolution of stories across sprints') +
-  theme(axis.title.y=element_text()) + ylab('Percentage increase') +
-  line.and.smooth('included.stories.change', 'Stories in sprint') +
-  # line.and.smooth('included.points.change', 'Story points in sprint') +
+ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
+  ggtitle('Backlog evolution across sprints') +
   line.and.smooth('backlog.stories.change', 'Stories in backlog') +
   line.and.smooth('backlog.points.change', 'Story points in backlog')
 
-# stddev per story point
-# => boxplots
-
-# Plot evolution of completion of stories across sprints
-ggplot(iterations[-1,], aes(x=start)) +
-  iteration.graph +
-  ggtitle('Evolution of story completion across sprints') +
-  theme(axis.title.y=element_text()) + ylab('Percentage increase') +
+ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
+  ggtitle('Cycle time evolution across sprints') +
   line.and.smooth('cycle.time.change', 'Cycle time in days') +
+  line.and.smooth('days.in.progress.change', 'Days in development')
+
+ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
+  ggtitle('Proportional story completion across sprints') +
+  line.and.smooth('completed.stories.proportion.change', 'Percentage of included stories completed') +
+  line.and.smooth('completed.points.proportion.change', 'Percentage of included story points completed')
+
+ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
+  ggtitle('Raw story completion across sprints') +
+  line.and.smooth('included.stories.change', 'Stories in sprint') +
+  line.and.smooth('included.points.change', 'Story points in sprint') +
   line.and.smooth('completed.stories.change', 'Stories completed') +
   line.and.smooth('completed.points.change', 'Story points completed')
 
-# Plot stories per sprint
-ggplot(iterations, aes(x=start)) +
-  iteration.graph +
-  ggtitle('Stories per sprint') +
-  line.and.smooth('cycle.time', 'Cycle time in days') +
-  line.and.smooth('included.stories', 'Stories in sprint') +
-  line.and.smooth('included.points', 'Story points in sprint') +
-  line.and.smooth('completed.stories', 'Stories completed') +
-  line.and.smooth('completed.points', 'Story points completed')
-
-# Plot backlog size across sprints
-ggplot(iterations, aes(x=start)) +
-  iteration.graph +
-  ggtitle('Evolving backlog size') +
-  line.and.smooth('backlog.stories', 'Stories in backlog') +
-  line.and.smooth('backlog.points', 'Story points in backlog')
+ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
+  ggtitle('All sprint change stats') +
+  line.and.smooth('included.stories.change', 'Stories in sprint') +
+  line.and.smooth('included.points.change', 'Story points in sprint') +
+  line.and.smooth('backlog.stories.change', 'Stories in backlog') +
+  line.and.smooth('backlog.points.change', 'Story points in backlog') +
+  line.and.smooth('completed.stories.change', 'Stories completed') +
+  line.and.smooth('completed.points.change', 'Story points completed') +
+  line.and.smooth('cycle.time.change', 'Cycle time in days') +
+  line.and.smooth('days.in.progress.change', 'Days in development')
 
 points <- full.issues[c('points', 'days.in.progress')]
 points <- subset(points, !is.na(points) & !is.na(days.in.progress))
@@ -135,6 +142,25 @@ ggplot(points, aes(x=points, y=days.in.progress)) +
 
 ggplot(estimates, aes(x=estimate)) +
   estimate.config + ggtitle('Estimate accuracy, by estimate') +
-  geom_bar(aes(y=mean, fill='Average cycle time'), stat='identity') +
-  geom_point(aes(y=interquartile, shape='Interquartile range'), size=3, na.rm=T) +
-  geom_point(aes(y=stddev, shape='Standard deviation'), size=3, na.rm=T)
+  geom_bar(aes(y=estimate.mean, fill='Average development time'), stat='identity') +
+  geom_point(aes(y=estimate.interquartile, shape='Interquartile range'), size=3, na.rm=T) +
+  geom_point(aes(y=estimate.stddev, shape='Standard deviation'), size=3, na.rm=T)
+
+
+# Plot stories per sprint
+ggplot(iterations, aes(x=start)) +
+  iteration.graph +
+  ggtitle('Stories per sprint') +
+  line.and.smooth('cycle.time', 'Cycle time in days') +
+  line.and.smooth('days.in.progress', 'Days in development') +
+  line.and.smooth('included.stories', 'Stories in sprint') +
+  line.and.smooth('included.points', 'Story points in sprint') +
+  line.and.smooth('completed.stories', 'Stories completed') +
+  line.and.smooth('completed.points', 'Story points completed')
+
+# Plot backlog size across sprints
+ggplot(iterations, aes(x=start)) +
+  iteration.graph +
+  ggtitle('Evolving backlog size') +
+  line.and.smooth('backlog.stories', 'Stories in backlog') +
+  line.and.smooth('backlog.points', 'Story points in backlog')
