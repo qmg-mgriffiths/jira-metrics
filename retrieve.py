@@ -6,16 +6,23 @@ import json
 from pprint import pprint
 from urllib.parse import urlencode
 
-def config(name: str):
-    with open('.' + name, 'r') as config_file:
-        return config_file.read().replace('\n', '')
+def config(name: str, arg_index: int = None):
+    if arg_index is not None and len(sys.argv) > arg_index:
+        return sys.argv[arg_index]
+    try:
+        with open('.' + name, 'r') as config_file:
+            return config_file.read().replace('\n', '')
+    except FileNotFoundError:
+        print("No " + name + " configuration. Try running this via make.")
+        exit(1)
 
 ESTIMATE_FIELDS = ['customfield_10026', 'customfield_10016']
 
+OUTPUT_TO = config('directory', 3)
 EMAIL = config('email')
 PASSWORD = config('apikey')
-PROJECT = config('project')
-BOARD = config('board')
+PROJECT = config('project', 1)
+BOARD = config('board', 2)
 JIRA = config('jira-url').rstrip('/')
 RESULTS_PER_PAGE = 50
 
@@ -156,7 +163,7 @@ def write_csv(filename, dataset):
     if len(dataset) == 0:
         raise ValueError("No '{}' data available".format(filename))
     keys = dataset[0].keys()
-    filename = filename + '.csv'
+    filename = OUTPUT_TO + '/' + filename + '.csv'
     with open(filename, 'w', newline='') as output_file:
         dict_writer = csv.DictWriter(output_file, keys)
         dict_writer.writeheader()
@@ -164,7 +171,7 @@ def write_csv(filename, dataset):
 
 # Write a list of dicts to a JSON file
 def write_json(filename, dataset):
-    filename = filename + '.json'
+    filename = OUTPUT_TO + '/' + filename + '.json'
     with open(filename, 'w') as output_file:
         json.dump(dataset, output_file)
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env Rscript
 
 library('ggplot2')
-pdf('graphs.pdf')
 
-iterations <- read.csv('augmented/iterations.full.csv')
-full.issues <- read.csv('augmented/issues.full.csv')
-estimates <- read.csv('augmented/estimates.csv')
-iteration.stories <- read.csv('augmented/iteration.stories.csv')
+args <- commandArgs(trailingOnly=TRUE)
+
+pdf(paste0(args[3], '/graphs.pdf'))
+
+iterations <- read.csv(paste0(args[3], '/augmented/iterations.full.csv'))
+full.issues <- read.csv(paste0(args[3], '/augmented/issues.full.csv'))
+estimates <- read.csv(paste0(args[3], '/augmented/estimates.csv'))
+iteration.stories <- read.csv(paste0(args[3], '/augmented/iteration.stories.csv'))
 
 if (length(which(estimates$count <= 1))) {
   cat(paste('Warning: omitting',length(which(estimates$count <= 1)), 'estimate value(s) used by just one story:\n'))

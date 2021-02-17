@@ -1,9 +1,10 @@
 #!/usr/bin/env Rscript
 source('tidy.functions.r')
 
-issues <- read.csv('issues.csv')
-transitions <- read.csv('transitions.csv')
-iterations <- read.csv('iterations.csv')
+args <- commandArgs(trailingOnly=TRUE)
+issues <- read.csv(paste0(args[3], '/issues.csv'))
+transitions <- read.csv(paste0(args[3], '/transitions.csv'))
+iterations <- read.csv(paste0(args[3], '/iterations.csv'))
 
 # Join flattened transitions into the issues dataset
 full.issues <- merge(
@@ -55,7 +56,7 @@ calculate.cycle.time.deltas(full.issues)
 # Write out all three relatively-intelligent datasets
 full.issues.output <- full.issues
 full.issues.output$in.iterations <- sapply(full.issues.output$in.iterations, paste, collapse=';')
-write.csv(points, 'augmented/estimates.csv', row.names=FALSE)
-write.csv(iterations, 'augmented/iterations.full.csv', row.names=FALSE)
-write.csv(full.issues.output, 'augmented/issues.full.csv', row.names=FALSE)
-write.csv(iteration.stories, 'augmented/iteration.stories.csv', row.names=FALSE)
+write.csv(points, paste0(args[3], '/augmented/estimates.csv'), row.names=FALSE)
+write.csv(iterations, paste0(args[3], '/augmented/iterations.full.csv'), row.names=FALSE)
+write.csv(full.issues.output, paste0(args[3], '/augmented/issues.full.csv'), row.names=FALSE)
+write.csv(iteration.stories, paste0(args[3], '/augmented/iteration.stories.csv'), row.names=FALSE)
