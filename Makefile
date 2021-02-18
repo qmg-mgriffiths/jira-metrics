@@ -1,31 +1,46 @@
 R=docker run -i --rm -v $$PWD:/host -w /host r-base:4.0.0
 R_GGPLOT=docker run -i --rm -v $$PWD:/host -w /host rocker/tidyverse:4.0.0
 
-BASE_CONFIG=.apikey .email .jira-url
+# Configuration for users wanting just one board's stats
 PROJECT_CONFIG=.project .board
 PROJECT=$(shell cat .project 2>/dev/null)
 BOARD=$(shell cat .board 2>/dev/null)
-DIR=$(shell echo "$(PROJECT) $(BOARD)" | tr '[A-Z]' '[a-z]' | tr -d '-' | sed -E "s/ +/_/g")
+
+# Configuration supporting single-board users and multi-board combined stats
+BASE_CONFIG=.apikey .email .jira-url
+DIR=$(shell echo "$(PROJECT) $(BOARD)" | tr '[A-Z]' '[a-z]' | tr '/' ' ' | tr -d '-' | sed -E "s/ +/_/g")
 ARGS=$(shell [ -n "$(PROJECT)" ] && [ -n "$(BOARD)" ] && echo "'$(PROJECT)' '$(BOARD)' '$(DIR)'")
+
+# Turning configs.txt into meaningful parameters
+CONFIGS=cat configs.txt | sed -E 's/ *\#.*//' | grep .
+ALL_PRESETS=$(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
 PRESET_MAKE=$(MAKE) $(shell $(CONFIGS) | tail -n +$* | head -1 \
 	| sed -E "s|^([^/]+)/(.+)|PROJECT='\\1' BOARD='\\2'|g")
 
-CONFIGS=cat configs.txt | sed -E 's/ *\#.*//' | grep .
+view: $(DIR)/graphs.pdf
+	open $<
 
-view-preset-1:
+summary: all.iterations.csv
+summary-incl-raw: all.iterations.incl.raw.csv
+
+regen: clean view
+
+view-%:
+	$(PRESET_MAKE) view
 
 preset-%:
 	@echo
 	$(PRESET_MAKE) graphs.pdf
 
-presets: $(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
+all presets: $(ALL_PRESETS)
 
-view-%:
-	$(PRESET_MAKE) view
-view: $(DIR)/graphs.pdf
-	open $<
-
-regen: clean view
+reset-all reset-presets: clean presets summary
+all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
+	./$<
+	@echo "Combined data for all projects can now be found in: $@"
+all.iterations.incl.raw.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
+	./$< --include-raw-data
+	@echo "See $@ for raw and change data. Be wary of comparing raw data between teams!"
 
 $(DIR)/augmented/iterations.full.csv: tidy.r tidy.functions.r $(DIR)/issues.csv
 	@[ -d $(@D) ] || mkdir -p $(@D)
@@ -37,39 +52,47 @@ $(DIR)/graphs.pdf: graph.r $(DIR)/augmented/iterations.full.csv
 
 $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
 	@[ -d $(DIR) ] || mkdir $(DIR)
+	@echo "$(PROJECT)" >$(DIR)/.project
+	@echo "$(BOARD)" >$(DIR)/.board
 	./$< $(ARGS)
 
-regen-platform: config-platform clean view
+regen-platform:
+	$(MAKE) PROJECT=PE BOARD='PE board' clean-dir view
 config-platform:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "PE" >.project
 	echo "PE board" >.board
 
-regen-car: config-car clean view
+regen-car:
+	$(MAKE) PROJECT=Car BOARD='Car Data Extraction workstream' clean-dir view
 config-car:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "Car" >.project
 	echo "Car Data Extraction workstream" >.board
 
-regen-home-product: config-home-product clean view
+regen-home-product:
+	$(MAKE) PROJECT=HP BOARD='Home Brand Scrum board' clean-dir view
 config-home-product:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "HP" >.project
 	echo "Home Brand Scrum board" >.board
 
-regen-home-tech-debt-bau: config-home-tech-debt-bau clean view
+regen-home-tech-debt-bau:
+	$(MAKE) PROJECT=HTDB BOARD='Home Non-Brand Scrum Board' clean-dir view
 config-home-tech-debt-bau:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "HTDB" >.project
 	echo "Home Non-Brand Scrum Board" >.board
 
-regen-home-gdpr: config-home-gdpr clean view
+regen-home-gdpr:
+	$(MAKE) PROJECT=HGDPR BOARD='Home GDPR Scrum board' clean-dir view
 config-home-gdpr:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "HGDPR" >.project
 	echo "Home GDPR Scrum board" >.board
 
-regen-payments: config-payments clean view
+regen-payments:
+	$(MAKE) PROJECT=PAYM BOARD='Scrum World - Payments' clean-dir view
 config-payments:
 	echo "https://policy-expert.atlassian.net/" >.jira-url
 	echo "PAYM" >.project
@@ -102,6 +125,11 @@ config-payments:
 
 cleanish:
 	rm -rf augmented/ *.pdf
+
+clean-%:
+	$(PRESET_MAKE) clean-dir
+clean-dir:
+	rm -rf $(DIR)
 
 clean:
 	rm -rf *_*/ augmented/ *.pdf *.csv *.json
