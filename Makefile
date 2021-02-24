@@ -1,5 +1,6 @@
 R=docker run -i --rm -v $$PWD:/host -w /host r-base:4.0.0
-R_GGPLOT=docker run -i --rm -v $$PWD:/host -w /host rocker/tidyverse:4.0.0
+DOCKER_TAG_R=r-jira-stats:0.0.1
+R_CUSTOM=docker run -i --rm -v $$PWD:/host -w /host $(DOCKER_TAG_R)
 
 # Configuration for users wanting just one board's stats
 PROJECT_CONFIG=.project .board
@@ -34,6 +35,20 @@ preset-%:
 
 all presets: $(ALL_PRESETS)
 
+table: table.html
+	open $<
+
+table.html: table.r table.functions.r all.iterations.csv
+	@$(MAKE) docker-built
+	$(R_CUSTOM) ./$<
+
+docker-built:
+	@[ -n "$$(docker images $(DOCKER_TAG_R) -q)" ] || $(MAKE) build-docker
+
+build-docker:
+	@echo "Building docker image. This can take up to ten minutes." >&2
+	docker build -t $(DOCKER_TAG_R) .
+
 reset-all reset-presets: clean presets summary
 all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
 	./$<
@@ -48,7 +63,8 @@ $(DIR)/augmented/iterations.full.csv: tidy.r tidy.functions.r $(DIR)/issues.csv
 
 graphs.pdf: $(DIR)/graphs.pdf
 $(DIR)/graphs.pdf: graph.r $(DIR)/augmented/iterations.full.csv
-	$(R_GGPLOT) ./$< $(ARGS)
+	@$(MAKE) docker-built
+	$(R_CUSTOM) ./$< $(ARGS)
 
 $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
 	@[ -d $(DIR) ] || mkdir $(DIR)
@@ -122,6 +138,9 @@ config-payments:
 
 # Don't remove intermediate files after generation
 .SECONDARY:
+
+print-%:
+	@echo "$*: $($*)"
 
 cleanish:
 	rm -rf augmented/ *.pdf
