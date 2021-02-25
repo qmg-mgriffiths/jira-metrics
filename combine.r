@@ -53,8 +53,6 @@ reshape.iterations <- function(iterations) {
   long.format[ grep('\\.change', long.format$metric), 'value'] <- round(
     long.format[ grep('\\.change', long.format$metric), 'value'],
     1)
-  # if (CHANGES.ONLY)
-  #   long.format$metric <- gsub('\\.change$', '', long.format$metric)
   row.names(long.format) <- 1:nrow(long.format)
   names(long.format)[match(c('name', 'end'), names(long.format))] <- c('iteration', 'iteration.end')
 

@@ -18,13 +18,15 @@ ALL_PRESETS=$(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
 PRESET_MAKE=$(MAKE) $(shell $(CONFIGS) | tail -n +$* | head -1 \
 	| sed -E "s|^([^/]+)/(.+)|PROJECT='\\1' BOARD='\\2'|g")
 
-view: $(DIR)/graphs.pdf
-	open $<
+view: $(DIR)/graphs.pdf $(DIR)/table-team.html
+	open $^
 
-summary: all.iterations.csv
+summary: table
 summary-incl-raw: all.iterations.incl.raw.csv
+	@echo "Note: tabular presentation is not yet available for raw data." >&2
+	@echo "See ./$< for the dataset itself." >&2
 
-regen: clean view
+regen reset: clean view
 
 view-%:
 	$(PRESET_MAKE) view
@@ -35,12 +37,28 @@ preset-%:
 
 all presets: $(ALL_PRESETS)
 
+table-team: $(DIR)/table-team.html
+	open $<
 table: table.html
 	open $<
+table-incl-raw: table-incl-raw.html
+	open $<
 
-table.html: table.r table.functions.r all.iterations.csv
+$(DIR)/table-team.html: table.r table.*.r all.iterations.incl.raw.csv
 	@$(MAKE) docker-built
+	@rm -f $@
+	$(R_CUSTOM) ./$< $(ARGS)
+
+table.html: table.r table.*.r all.iterations.csv
+	@$(MAKE) docker-built
+	@rm -f $@
 	$(R_CUSTOM) ./$<
+
+table-incl-raw.html: table.r table.*.r all.iterations.csv
+	@$(MAKE) docker-built
+	@rm -f $@
+	@# TODO not ready for use yet
+	$(R_CUSTOM) ./$< --include-raw-data
 
 docker-built:
 	@[ -n "$$(docker images $(DOCKER_TAG_R) -q)" ] || $(MAKE) build-docker
@@ -49,7 +67,7 @@ build-docker:
 	@echo "Building docker image. This can take up to ten minutes." >&2
 	docker build -t $(DOCKER_TAG_R) .
 
-reset-all reset-presets: clean presets summary
+regen-all regen-presets reset-all reset-presets: clean presets summary
 all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
 	./$<
 	@echo "Combined data for all projects can now be found in: $@"

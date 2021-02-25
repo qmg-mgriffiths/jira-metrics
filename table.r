@@ -3,37 +3,53 @@
 library('formattable')
 library('htmltools')
 library('stringr')
-source('table.functions.r')
+source('table.manipulation.r')
+source('table.presentation.r')
+
+args <- commandArgs(trailingOnly=TRUE)
+TEAM <- ifelse(length(args) >= 2,
+  paste0(args[1], ': ', args[2]),
+  NA)
 
 # List of metrics for which high numbers are bad
 swap.colours <- c('Backlog points', 'Backlog stories', 'Cycle time', 'Days in progress')
 
-df <- read.csv('all.iterations.csv')
+INCL.RAW.DATA <- '--include-raw-data' %in% args
 
-df$board <- NULL
-df$iteration <- NULL
-df <- reshape(df, direction='wide',
-  timevar='project', v.names='value',
-  idvar=c('metric', 'order'))
+df <- if (!is.na(TEAM)) {
+  full.df <- read.csv('all.iterations.incl.raw.csv')
+  subset(full.df, board == TEAM)
+} else if (INCL.RAW.DATA) {
+  cat("Warning: all data is currently output as percentages, even when absolute.\n")
+  read.csv('all.iterations.incl.raw.csv')
+} else {
+  read.csv('all.iterations.csv')
+}
+if (nrow(df) == 0) {
+  cat(paste0('No data found', ifelse(is.na(TEAM), '', ' for that team')))
+  quit(status=1)
+}
 
-df <- df[!apply(df, 1, function(row) all(is.na(row[3:length(row)]))), ]
+first.value.column <- function(df)
+  head(which(sapply(names(df), function(col) is.numeric(df[[col]]))), 1)
 
-df$metric <- gsub('\\.change', ' (change)', df$metric)
-df$metric <- gsub('\\.proportion', ' (proportion)', df$metric)
-names(df) <- gsub('^value\\.', '', names(df))
-df$metric <- str_to_sentence(gsub('\\.', ' ', df$metric))
+# credentials should expire naturally
+# remove all interviews >24h old
 
-df$order <- paste0(-df$order, ' ago')
-df$order[ df$order == '0 ago' ] <- 'latest completed'
-names(df)[ names(df) == 'order' ] <- 'Iteration age'
-names(df)[ names(df) == 'metric' ] <- 'Metric'
+df <- reshape.dataset(df)
 
-row.names(df) <- NULL
+df <- order.df(df)
 
-tab <- formattable(df, align=c('r', 'r', rep('c', length(df)-2)),
-  list(Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
-        area(col = 3:ncol(df)) ~ percent.tile(df$Metric,
-          c(swap.colours, gsub('$', ' (change)', swap.colours)))
-))
+df <- remove.empty.rows(df)
+df <- tidy.names(df)
 
-export.formattable(tab, 'table.html')
+tab <- draw.table(df)
+
+outpath <- if(length(args) >= 3) {
+  paste0(args[3], '/table-team.html')
+} else if (INCL.RAW.DATA) {
+  'table-incl-raw.html'
+} else {
+  'table.html'
+}
+export.formattable(tab, outpath)

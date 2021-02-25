@@ -19,9 +19,10 @@ export.formattable <- function(f, file, width = "100%", height = NULL,
   w <- as.htmlwidget(f, width = width, height = height)
   path <- html_print(w, background = background, viewer = NULL)
   if (grepl('\\.html$', file)) {
+    dir <- gsub('[^/]+$', '', file)
     file.copy(path, file)
-    unlink('lib/', recursive=TRUE)
-    file.copy(gsub('/[^/]+$', '/lib', path), './', recursive=TRUE)
+    unlink(paste0(dir,'lib/'), recursive=TRUE)
+    file.copy(gsub('/[^/]+$', '/lib', path), paste0('./',dir), recursive=TRUE)
     return(invisible())
   }
   url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
@@ -33,7 +34,7 @@ export.formattable <- function(f, file, width = "100%", height = NULL,
 }
 
 # Turn a range of numbers into a block of HTML cells
-percent.tile <- function (partition=NULL, swap.colours=character()) {
+cell.format <- function (partition=NULL, swap.colours=character(), output.format=percent.format) {
   formatter("span", width='1em', style=function(x) {
     colours <- colour.range(x, partition=partition, swap.colours=swap.colours)
     style(display = "block",
@@ -41,7 +42,7 @@ percent.tile <- function (partition=NULL, swap.colours=character()) {
           `border-radius` = "4px",
           `background-color` = colours)
     },
-    percent.format
+    output.format
   )}
 
 # Turn a block of numbers into HTML colours, optionally partitioned by a metric
@@ -89,3 +90,34 @@ ramp <- function(x, from, to) {
 
 # Turn a number like 0.5342 into a nice percentage
 percent.format <- function(x) percent(x / 100, digits=1)
+
+identity.format <- function(x) round(x, 1)
+
+# Produce a formattable object for an individual team's data
+draw.table.per.team <- function(df) {
+  if (length(unique(df$project)) == 1)
+    df$project <- NULL
+  value.col <- first.value.column(df)
+  formattable(df, align=c('r', 'r', rep('c', length(df)-2)),
+    list(Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
+          area(col = value.col) ~ cell.format(df$Metric, swap.colours, identity.format),
+          area(col = (value.col+1):ncol(df)) ~ cell.format(df$Metric,
+            c(swap.colours, gsub('$', ' (change)', swap.colours)))
+    ))
+}
+
+# Produce a formattable object for comparable data between teams
+draw.table.across.teams <- function(df)
+  formattable(df, align=c('r', 'r', rep('c', length(df)-2)),
+    list(Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
+          area(col = 3:ncol(df)) ~ cell.format(df$Metric,
+            c(swap.colours, gsub('$', ' (change)', swap.colours)))
+    ))
+
+# Produce a formattable object as appropriate
+draw.table <- function(df) {
+  if (!is.na(TEAM))
+    draw.table.per.team(df)
+  else
+    draw.table.across.teams(df)
+}

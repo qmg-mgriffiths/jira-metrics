@@ -136,8 +136,8 @@ add.iteration.end.stats <- function(iterations, issues) {
     is.na(iterations$cycle.time),
     c('completed.points', 'completed.stories')
   ] <- 0
-  iterations$completed.stories.proportion <- iterations$completed.stories / iterations$included.stories
-  iterations$completed.points.proportion <- iterations$completed.points / iterations$included.points
+  iterations$completed.stories.proportion <- iterations$completed.stories / iterations$included.stories * 100
+  iterations$completed.points.proportion <- iterations$completed.points / iterations$included.points * 100
   iterations
 }
 
