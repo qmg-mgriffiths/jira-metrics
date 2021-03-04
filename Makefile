@@ -44,17 +44,17 @@ table: table.html
 table-incl-raw: table-incl-raw.html
 	open $<
 
-$(DIR)/table-team.html: table.r table.*.r all.iterations.incl.raw.csv
+$(DIR)/table-team.html: table.r table.*.r common.r all.iterations.incl.raw.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	$(R_CUSTOM) ./$< $(ARGS)
 
-table.html: table.r table.*.r all.iterations.csv
+table.html: table.r table.*.r common.r all.iterations.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	$(R_CUSTOM) ./$<
 
-table-incl-raw.html: table.r table.*.r all.iterations.csv
+table-incl-raw.html: table.r table.*.r common.r all.iterations.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	@# TODO not ready for use yet

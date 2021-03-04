@@ -35,9 +35,10 @@ if (nrow(df) == 0) {
 
 df <- reshape.dataset(df)
 
-df <- order.df(df)
-
 df <- remove.empty.rows(df)
+
+df <- add.metric.descriptions(df)
+
 df <- tidy.names(df)
 
 tab <- draw.table(df)

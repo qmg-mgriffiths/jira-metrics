@@ -24,7 +24,7 @@ pick.done.column <- function(transitions)
 # Addresses situation where team uses one In Progress column then switches to another
 # => i.e. where data is missing from one column, try loading it from another
 join.in.progress.columns <- function(full.issues) {
-  cols <- paste0('date.', IN.PROGRESS.COLUMNS)
+  cols <- intersect(paste0('date.', IN.PROGRESS.COLUMNS), names(full.issues))
   updated.issues <- full.issues
   for (col in cols) {
     updated.issues[[col]] <- apply(full.issues[cols], 1, function(row, col) {
@@ -34,7 +34,6 @@ join.in.progress.columns <- function(full.issues) {
       # If zero or 2+ other columns have data, we don't have a clear alternative
       if (length(alternative) != 1)
         return(NA)
-      # cat(paste0('Replacing ',col,'@', row[[col]],' with ', names(row)[alternative],'@',row[[alternative]],'\n'))
       row[[alternative]]
     }, col)
     updated.issues[[col]] <- as.POSIXct(updated.issues[[col]])
@@ -76,7 +75,7 @@ add.cycle.times <- function(issues, transitions) {
   }
   issues$created <- as.POSIXct(issues$created)
   issues$story.lifetime <- as.numeric(
-    (issues[[paste0('date.', pick.done.column(transitions))]] - issues$created) / 86400)
+    issues[[paste0('date.', pick.done.column(transitions))]] - issues$created)
   issues
 }
 

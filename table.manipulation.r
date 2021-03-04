@@ -59,8 +59,11 @@ tidy.names.per.team <- function(df) {
 }
 
 # Order the dataset appropriately
-order.df <- function(df)
-  df[ order(df$metric, -df$order), ]
+order.df <- function(df) {
+  df <- df[ order(df$metric.order, df$metric, -df$order), ]
+  df$metric.order <- NULL
+  df
+}
 
 # Prettify column headers and other text data
 tidy.names <- function(df) {

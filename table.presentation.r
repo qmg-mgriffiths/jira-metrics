@@ -98,20 +98,55 @@ draw.table.per.team <- function(df) {
   if (length(unique(df$project)) == 1)
     df$project <- NULL
   value.col <- first.value.column(df)
-  formattable(df, align=c('r', 'r', rep('c', length(df)-2)),
-    list(Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
-          area(col = value.col) ~ cell.format(df$Metric, swap.colours, identity.format),
-          area(col = (value.col+1):ncol(df)) ~ cell.format(df$Metric,
-            c(swap.colours, gsub('$', ' (change)', swap.colours)))
+  formattable(df, align=c(rep('r', 3), rep('c', length(df)-3)),
+    list(
+      Description=formatter("span", style=~ style(color = "grey", font.style = "italic")),
+      Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
+      area(col = value.col) ~ cell.format(df$Metric, swap.colours, identity.format),
+      area(col = (value.col+1):ncol(df)) ~ cell.format(df$Metric,
+        c(swap.colours, gsub('$', ' (change)', swap.colours)))
     ))
+}
+
+add.metric.descriptions <- function(df) {
+  descriptions <- data.frame(
+    metric=names(metric.descriptions),
+    Description=as.character(metric.descriptions),
+    metric.order=c(1:length(metric.descriptions)))
+
+  proportion.descriptions <- descriptions
+  proportion.descriptions$metric <- paste0(proportion.descriptions$metric, '.proportion')
+  proportion.descriptions$metric.order <- proportion.descriptions$metric.order + 0.25
+  proportion.descriptions$Description <- paste0(
+    proportion.descriptions$Description,
+    ', as a proportion of those included in the iteration')
+  descriptions <- rbind(descriptions, proportion.descriptions)
+
+  change.descriptions <- descriptions
+  change.descriptions$metric <- paste0(change.descriptions$metric, '.change')
+  change.descriptions$metric.order <- change.descriptions$metric.order + 0.5
+  change.descriptions$Description <- paste0(
+    change.descriptions$Description,
+    ' (percent change from last iteration)')
+  descriptions <- rbind(descriptions, change.descriptions)
+  descriptions <- subset(descriptions, !duplicated(metric))
+
+  df <- merge(df, descriptions, by='metric', all.x=T)
+  df <- df[ c('Description', 'metric.order', setdiff(names(df), c('Description', 'metric.order'))) ]
+  df <- order.df(df)
+  df[ duplicated(df$Description), 'Description' ] <- NA
+  df[ is.na(df$Description), 'Description' ] <- ''
+  df
 }
 
 # Produce a formattable object for comparable data between teams
 draw.table.across.teams <- function(df)
   formattable(df, align=c('r', 'r', rep('c', length(df)-2)),
-    list(Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
-          area(col = 3:ncol(df)) ~ cell.format(df$Metric,
-            c(swap.colours, gsub('$', ' (change)', swap.colours)))
+    list(
+      Description=formatter("span", style=~ style(color = "grey", font.style = "italic")),
+      Metric=formatter("span", style=~ style(color = "grey", font.weight = "bold")),
+      area(col = first.value.column(df):ncol(df)) ~ cell.format(df$Metric,
+        c(swap.colours, gsub('$', ' (change)', swap.colours)))
     ))
 
 # Produce a formattable object as appropriate
