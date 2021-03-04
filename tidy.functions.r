@@ -21,11 +21,30 @@ pick.in.progress.column <- function(transitions)
 pick.done.column <- function(transitions)
   pick.column(transitions, DONE.COLUMNS)
 
+# Addresses situation where team uses one In Progress column then switches to another
+# => i.e. where data is missing from one column, try loading it from another
+join.in.progress.columns <- function(full.issues) {
+  cols <- paste0('date.', IN.PROGRESS.COLUMNS)
+  updated.issues <- full.issues
+  for (col in cols) {
+    updated.issues[[col]] <- apply(full.issues[cols], 1, function(row, col) {
+      if (!is.na(row[[col]]))
+        return(row[[col]])
+      alternative <- which(!is.na(unlist(row)))
+      # If zero or 2+ other columns have data, we don't have a clear alternative
+      if (length(alternative) != 1)
+        return(NA)
+      # cat(paste0('Replacing ',col,'@', row[[col]],' with ', names(row)[alternative],'@',row[[alternative]],'\n'))
+      row[[alternative]]
+    }, col)
+    updated.issues[[col]] <- as.POSIXct(updated.issues[[col]])
+  }
+  updated.issues
+}
+
 flatten.transitions <- function(transitions) {
   transitions <- transitions[ order(transitions$issue, transitions$date), ]
   transitions$from <- NULL
-
-  in.progress <- pick.in.progress.column(transitions)
   done <- pick.done.column(transitions)
 
   # Group transitions by the column the story moved to
@@ -39,29 +58,38 @@ flatten.transitions <- function(transitions) {
 
   # Flatten the data into one row per issue
   transitions <- reshape(transitions, direction='wide', timevar='to', idvar='issue', v.names='date')
-
-  # Time between In Progress and Done is one of our more interesting stats
-  transitions$days.in.progress <- as.numeric(
-    (transitions[[paste0('date.', done)]] - transitions[[paste0('date.', in.progress)]]) / 86400)
   transitions
 }
 
-add.cycle.time <- function(issues, transitions) {
+add.cycle.times <- function(issues, transitions) {
+  # Time between In Progress and Done is one of our more interesting stats
+  done <- pick.done.column(transitions)
+  in.progress <- pick.in.progress.column(transitions)
+  issues$days.in.progress <- as.numeric(
+    (issues[[paste0('date.', done)]] - issues[[paste0('date.', in.progress)]]) / 86400)
+
+  straight.to.done <- which(!is.na(issues[['date.Done']]) & is.na(issues[['days.in.progress']]))
+  if (length(straight.to.done) > 0) {
+    cat(paste0("Warning: ",length(straight.to.done)," cards went straight to Done without being In Progress first, including:\n"))
+    straight.to.done <- straight.to.done[ order(issues[straight.to.done, 'date.Done'], decreasing=T) ]
+    print(head(issues[straight.to.done, c('id', 'type', 'date.Done')]))
+  }
   issues$created <- as.POSIXct(issues$created)
-  issues$cycle.time <- as.numeric(
+  issues$story.lifetime <- as.numeric(
     (issues[[paste0('date.', pick.done.column(transitions))]] - issues$created) / 86400)
   issues
 }
 
-analyse.estimates <- function(issues) {
-  if (all(is.na(issues$points))) {
-    cat('Error: no stories appear to have estimates. Check retrieve.py or add some estimates.\n')
-    quit(status=1)
+analyse.estimates.for.iteration <- function(issues, iteration=NA) {
+  if (!is.na(iteration)) {
+    issues <- subset(issues, completed.during == iteration)
   }
   points <- data.frame(
     estimate=as.factor(issues$points),
     days.in.progress=issues$days.in.progress)
-  points <- aggregate(. ~ estimate, points, c, na.action=na.pass)
+  points <- aggregate(. ~ estimate, points, c, na.action=na.pass, simplify=F)
+  points <- points[ !sapply(points$days.in.progress, function(days) all(is.na(days))), ]
+  points$iteration <- rep(iteration, nrow(points))
   points$count <- sapply(points$days.in.progress, length)
   points$estimate.mean <- sapply(points$days.in.progress, mean, na.rm=T)
   points$estimate.stddev <- sapply(points$days.in.progress, sd, na.rm=T)
@@ -70,16 +98,33 @@ analyse.estimates <- function(issues) {
   points
 }
 
+analyse.estimates <- function(issues) {
+  if (all(is.na(issues$points))) {
+    cat('Error: no stories appear to have estimates. Check retrieve.py or add some estimates.\n')
+    quit(status=1)
+  }
+  estimates <- analyse.estimates.for.iteration(issues)
+  for (iteration in setdiff(unique(issues$completed.during), NA)) {
+    estimates <- rbind(estimates, analyse.estimates.for.iteration(issues, iteration))
+  }
+  estimates
+}
+
 calculate.cycle.time.deltas <- function(full.issues) {
   deltas <- full.issues[ order(full.issues$iteration.end, full.issues$delta, decreasing=TRUE),
     c('id', 'points', 'days.in.progress', 'estimate.mean', 'delta', 'completed.during') ]
-  deltas <- deltas[ deltas$delta & deltas$delta > 0, ]
-  print(head(deltas, 10))
+  deltas <- deltas[ !is.na(deltas$delta) & deltas$delta > 0, ]
+  cat("A few of the slowest stories relative to their estimate class:\n")
+  # TODO some IDs may be duplicated if they were Done on iteration transition day
+  deltas <- subset(deltas, !duplicated(deltas$id))
+  row.names(deltas) <- deltas$id
+  print(head(deltas[-1], 10))
   invisible(deltas)
 }
 
 
 reject.outlier.issues <- function(issues, estimates) {
+  estimates <- subset(estimates, is.na(iteration))
   if (length(which(!is.na(issues$points) & issues$points <= 0))) {
     cat(paste0("Warning: ignoring estimates of zero or below:\n"))
     print(issues[ !is.na(issues$points) & issues$points <= 0, c('id', 'points', 'days.in.progress') ])
@@ -92,7 +137,8 @@ reject.outlier.issues <- function(issues, estimates) {
   outlier.issues <- subset(outlier.issues, days.in.progress > estimate.mean + (2 * estimate.stddev))
   if (nrow(outlier.issues) > 0) {
     cat(paste0("Warning: ignoring the estimates of the following extreme outliers:\n"))
-    print(outlier.issues[ c('id', 'points', 'days.in.progress') ])
+    row.names(outlier.issues) <- outlier.issues$id
+    print(outlier.issues[ c('points', 'days.in.progress') ])
     issues[ full.issues$id %in% outlier.issues$id, 'points' ] <- NA
   }
   issues
@@ -124,16 +170,16 @@ add.iteration.completions <- function(iterations, issues) {
 
 
 add.iteration.end.stats <- function(iterations, issues) {
-  iteration.end.stats <- issues[ c('days.in.progress', 'cycle.time', 'points', 'completed.during') ]
-  names(iteration.end.stats) <- c('days.in.progress', 'cycle.time', 'completed.points', 'iteration')
+  iteration.end.stats <- issues[ c('days.in.progress', 'story.lifetime', 'points', 'completed.during') ]
+  names(iteration.end.stats) <- c('days.in.progress', 'story.lifetime', 'completed.points', 'iteration')
   iteration.end.stats <- aggregate(. ~ iteration, iteration.end.stats, c, simplify=FALSE, na.action=na.pass)
   iteration.end.stats$completed.stories <- sapply(iteration.end.stats$completed.points, length)
   iteration.end.stats$completed.points <- sapply(iteration.end.stats$completed.points, sum, na.rm=T)
-  iteration.end.stats$cycle.time <- sapply(iteration.end.stats$cycle.time, mean, na.rm=T)
+  iteration.end.stats$story.lifetime <- sapply(iteration.end.stats$story.lifetime, mean, na.rm=T)
   iteration.end.stats$days.in.progress <- sapply(iteration.end.stats$days.in.progress, mean, na.rm=T)
   iterations <- merge(iterations, iteration.end.stats, by.x='name', by.y='iteration', all.x=T)
   iterations[
-    is.na(iterations$cycle.time),
+    is.na(iterations$story.lifetime),
     c('completed.points', 'completed.stories')
   ] <- 0
   iterations$completed.stories.proportion <- iterations$completed.stories / iterations$included.stories * 100
@@ -164,6 +210,17 @@ add.iteration.points <- function(iteration.stories, issues) {
   iteration.points$points <- sapply(iteration.points$points, sum, na.rm=T)
   names(iteration.points) <- c('iteration', 'included.points', 'included.stories')
   iterations <- merge(iterations, iteration.points, by.x='name', by.y='iteration')
+}
+
+add.iteration.correlations <- function(iterations, issues, estimates) {
+  iterations$estimate.correlation <- sapply(iterations$name, function(iteration.name) {
+    iteration.issues <- subset(issues, completed.during == iteration.name)
+    iteration.issues <- iteration.issues[ iteration.issues$points %in% estimates$estimate, ]
+    if (nrow(iteration.issues) == 0)
+      return(NA)
+    cor(iteration.issues$points, iteration.issues$days.in.progress, use='pairwise.complete.obs')
+  })
+  iterations
 }
 
 

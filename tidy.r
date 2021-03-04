@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+source('common.r')
 source('tidy.functions.r')
 
 args <- commandArgs(trailingOnly=TRUE)
@@ -12,12 +13,10 @@ full.issues <- merge(
   flatten.transitions(transitions),
   by.x='id', by.y='issue', all.x=T)
 
-full.issues <- add.cycle.time(full.issues, transitions)
 
-points <- analyse.estimates(full.issues)
-full.issues <- reject.outlier.issues(full.issues, points)
-# Re-calculate estimate metadata in case any issues' estimates were rejected
-points <- analyse.estimates(full.issues)
+full.issues <- join.in.progress.columns(full.issues)
+
+full.issues <- add.cycle.times(full.issues, transitions)
 
 # Restrict iterations to those that have finished
 iterations <- subset(iterations, state == 'closed')
@@ -32,22 +31,22 @@ iterations <- add.iteration.backlogs(iterations, full.issues)
 iterations <- add.iteration.points(iteration.stories, full.issues)
 iterations <- add.iteration.end.stats(iterations, full.issues)
 
+points <- analyse.estimates(full.issues)
+full.issues <- reject.outlier.issues(full.issues, points)
+# Re-calculate estimate metadata in case any issues' estimates were rejected
+points <- analyse.estimates(full.issues)
+
+iterations <- add.iteration.correlations(iterations, full.issues, points)
+
 iterations <- iterations[ order(iterations$start), ]
 row.names(iterations) <- c(1:nrow(iterations))
 
 # Calculate diffs for various stats across iterations
-for (attr in c('stories', 'points')) {
-  for (field in c('included', 'completed', 'backlog')) {
-    data.col <- paste0(field,'.',attr)
-    iterations <- calculate.change.for(data.col, iterations)
-  }
+for (col in value.columns(iterations)) {
+  iterations <- calculate.change.for(col, iterations)
 }
-iterations <- calculate.change.for('completed.stories.proportion', iterations)
-iterations <- calculate.change.for('completed.points.proportion', iterations)
-iterations <- calculate.change.for('days.in.progress', iterations)
-iterations <- calculate.change.for('cycle.time', iterations)
 
-full.issues <- merge(full.issues, points, by.x='points', by.y='estimate')
+full.issues <- merge(full.issues, subset(points, is.na(iteration)), by.x='points', by.y='estimate')
 
 full.issues$delta <- full.issues$days.in.progress - full.issues$estimate.mean
 

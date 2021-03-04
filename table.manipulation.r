@@ -83,7 +83,6 @@ tidy.names <- function(df) {
 
 # Remove rows for which all columns' values are empty
 remove.empty.rows <- function(df) {
-  first.value <- first.value.column(df)
-  df[!apply(df, 1, function(row)
-    all(is.na(row[first.value:length(row)])) ), ]
+  cols <- value.columns(df)
+  df[!apply(df, 1, function(row) all(is.na(row[cols])) ), ]
 }

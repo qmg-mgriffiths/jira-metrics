@@ -3,6 +3,7 @@
 library('formattable')
 library('htmltools')
 library('stringr')
+source('common.r')
 source('table.manipulation.r')
 source('table.presentation.r')
 
@@ -26,15 +27,11 @@ df <- if (!is.na(TEAM)) {
   read.csv('all.iterations.csv')
 }
 if (nrow(df) == 0) {
-  cat(paste0('No data found', ifelse(is.na(TEAM), '', ' for that team')))
+  cat(paste0('No data found', ifelse(is.na(TEAM), '', paste0(' for ', TEAM)),'\n'))
   quit(status=1)
 }
 
-first.value.column <- function(df)
-  head(which(sapply(names(df), function(col) is.numeric(df[[col]]))), 1)
 
-# credentials should expire naturally
-# remove all interviews >24h old
 
 df <- reshape.dataset(df)
 
