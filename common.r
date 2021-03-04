@@ -1,4 +1,6 @@
 
+IGNORE.ALL.TASKS <- TRUE
+
 first.value.column <- function(df)
   head(which(sapply(names(df), function(col) col != 'order' && is.numeric(df[[col]]))), 1)
 

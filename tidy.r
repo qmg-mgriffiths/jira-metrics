@@ -13,6 +13,10 @@ full.issues <- merge(
   flatten.transitions(transitions),
   by.x='id', by.y='issue', all.x=T)
 
+# For now, this flag is hardcoded in common.r
+if (IGNORE.ALL.TASKS) {
+  full.issues <- full.issues[ ! full.issues$type %in% c('Task', 'Sub-task'), ]
+}
 
 full.issues <- join.in.progress.columns(full.issues)
 
