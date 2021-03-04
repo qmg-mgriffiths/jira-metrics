@@ -1,6 +1,8 @@
 .*
+!.*ignore
 *.json
 *.csv
 *.pdf
 *.html
+*.zip
 lib/

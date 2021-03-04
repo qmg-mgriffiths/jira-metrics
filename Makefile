@@ -44,12 +44,17 @@ table: table.html
 table-incl-raw: table-incl-raw.html
 	open $<
 
+zip: metrics.zip
+metrics.zip: table.html table-team.html lib */graphs.pdf all.iterations.csv
+	@rm -f $@
+	zip -rq $@ $^
+
 $(DIR)/table-team.html: table.r table.*.r common.r all.iterations.incl.raw.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	$(R_CUSTOM) ./$< $(ARGS)
 
-table.html: table.r table.*.r common.r all.iterations.csv
+table.html lib: table.r table.*.r common.r all.iterations.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	$(R_CUSTOM) ./$<
@@ -156,6 +161,9 @@ config-payments:
 
 # Don't remove intermediate files after generation
 .SECONDARY:
+
+# Always regenerate the .zip file if requested
+.PHONY: metrics.zip
 
 print-%:
 	@echo "$*: $($*)"

@@ -33,6 +33,7 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 
 #### Other commands
 
+- `make zip` will produce `metrics.zip` containing some generated data.
 - `make clean` will destroy all data for all projects
 - `make cleanest` will clear out even your configuration.
 
