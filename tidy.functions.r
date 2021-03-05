@@ -53,7 +53,6 @@ flatten.transitions <- function(transitions) {
     sapply(transitions[transitions$to == done, 'date'], tail, 1)
   # For every other column, we want the first moment the story arrives there
   transitions$date <- sapply(transitions$date, head, 1)
-  transitions$date <- as.POSIXct(transitions$date)
 
   # Flatten the data into one row per issue
   transitions <- reshape(transitions, direction='wide', timevar='to', idvar='issue', v.names='date')
@@ -61,21 +60,19 @@ flatten.transitions <- function(transitions) {
 }
 
 add.cycle.times <- function(issues, transitions) {
+  date.done <- as.POSIXct(issues[[paste0('date.', pick.done.column(transitions))]])
+  date.in.progress <- as.POSIXct(issues[[paste0('date.', pick.in.progress.column(transitions))]])
   # Time between In Progress and Done is one of our more interesting stats
-  done <- pick.done.column(transitions)
-  in.progress <- pick.in.progress.column(transitions)
-  issues$days.in.progress <- as.numeric(
-    (issues[[paste0('date.', done)]] - issues[[paste0('date.', in.progress)]]) / 86400)
+  issues$days.in.progress <- as.numeric((date.done - date.in.progress) / 86400)
 
-  straight.to.done <- which(!is.na(issues[['date.Done']]) & is.na(issues[['days.in.progress']]))
+  straight.to.done <- which(!is.na(date.done) & is.na(issues[['days.in.progress']]))
   if (length(straight.to.done) > 0) {
     cat(paste0("Warning: ",length(straight.to.done)," cards went straight to Done without being In Progress first, including:\n"))
     straight.to.done <- straight.to.done[ order(issues[straight.to.done, 'date.Done'], decreasing=T) ]
     print(head(issues[straight.to.done, c('id', 'type', 'date.Done')]))
   }
-  issues$created <- as.POSIXct(issues$created)
-  issues$story.lifetime <- as.numeric(
-    issues[[paste0('date.', pick.done.column(transitions))]] - issues$created)
+  # Time from creation to completion is also potentially interesting
+  issues$story.lifetime <- as.numeric(date.done - as.POSIXct(issues$created)) / 86400
   issues
 }
 
@@ -114,7 +111,6 @@ calculate.cycle.time.deltas <- function(full.issues) {
     c('id', 'points', 'days.in.progress', 'estimate.mean', 'delta', 'completed.during') ]
   deltas <- deltas[ !is.na(deltas$delta) & deltas$delta > 0, ]
   cat("A few of the slowest stories relative to their estimate class:\n")
-  # TODO some IDs may be duplicated if they were Done on iteration transition day
   deltas <- subset(deltas, !duplicated(deltas$id))
   row.names(deltas) <- deltas$id
   print(head(deltas[-1], 10))
