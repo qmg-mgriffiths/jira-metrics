@@ -12,11 +12,14 @@ BASE_CONFIG=.apikey .email .jira-url
 DIR=$(shell echo "$(PROJECT) $(BOARD)" | tr '[A-Z]' '[a-z]' | tr '/' ' ' | tr -d '-' | sed -E "s/ +/_/g")
 ARGS=$(shell [ -n "$(PROJECT)" ] && [ -n "$(BOARD)" ] && echo "'$(PROJECT)' '$(BOARD)' '$(DIR)'")
 
-# Turning configs.txt into meaningful parameters
+# Turning configs.txt into meaningful parameters based on a passed-in wildcard
 CONFIGS=cat configs.txt | sed -E 's/ *\#.*//' | grep .
-ALL_PRESETS=$(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
-PRESET_MAKE=$(MAKE) $(shell $(CONFIGS) | tail -n +$* | head -1 \
-	| sed -E "s|^([^/]+)/(.+)|PROJECT='\\1' BOARD='\\2'|g")
+MAKE_ARGS_FROM_CONFIG=sed -E "s|^([^/]+)/(.+)|PROJECT='\\1' BOARD='\\2'|g"
+CONFIG_FROM_PROJECT=$(CONFIGS) | awk "NR==$$($(CONFIGS) | grep -ni "^$*/" | cut -d: -f1)" 2>/dev/null
+CONFIG_FROM_NUMBER=$(CONFIGS) | awk 'NR==$*' 2>/dev/null
+
+CONFIG_FROM_WILDCARD=(config=$$($(CONFIG_FROM_NUMBER)) && ([ -n "$$config" ] && echo "$$config") || $(CONFIG_FROM_PROJECT))
+MAKE_FROM_WILDCARD=$(MAKE) $(shell $(CONFIG_FROM_WILDCARD) | $(MAKE_ARGS_FROM_CONFIG))
 
 view: $(DIR)/graphs.pdf $(DIR)/table-team.html
 	open $^
@@ -29,12 +32,13 @@ summary-incl-raw: all.iterations.incl.raw.csv
 regen reset: clean view
 
 view-%:
-	$(PRESET_MAKE) view
+	$(MAKE_FROM_WILDCARD) view
 
 preset-%:
 	@echo
-	$(PRESET_MAKE) graphs.pdf
+	$(MAKE_FROM_WILDCARD) graphs.pdf
 
+ALL_PRESETS=$(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
 all presets: $(ALL_PRESETS)
 
 table-team: $(DIR)/table-team.html
@@ -45,7 +49,7 @@ table-incl-raw: table-incl-raw.html
 	open $<
 
 zip: metrics.zip
-metrics.zip: table.html table-team.html lib */graphs.pdf all.iterations.csv
+metrics.zip: table.html lib */table-team.html */lib */graphs.pdf all.iterations.csv
 	@rm -f $@
 	zip -rq $@ $^
 
@@ -73,10 +77,11 @@ build-docker:
 	docker build -t $(DOCKER_TAG_R) .
 
 regen-all regen-presets reset-all reset-presets: clean presets summary
-all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
+	@echo "Data for all teams is now available."
+all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
 	./$<
 	@echo "Combined data for all projects can now be found in: $@"
-all.iterations.incl.raw.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "presets")
+all.iterations.incl.raw.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
 	./$< --include-raw-data
 	@echo "See $@ for raw and change data. Be wary of comparing raw data between teams!"
 
@@ -95,47 +100,29 @@ $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
 	@echo "$(BOARD)" >$(DIR)/.board
 	./$< $(ARGS)
 
-regen-platform:
-	$(MAKE) PROJECT=PE BOARD='PE board' clean-dir view
-config-platform:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "PE" >.project
-	echo "PE board" >.board
-
+# Autocomplete helper rules
 regen-car:
-	$(MAKE) PROJECT=Car BOARD='Car Data Extraction workstream' clean-dir view
+regen-pe:
+regen-hp:
+regen-paym:
+regen-htdb:
 config-car:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "Car" >.project
-	echo "Car Data Extraction workstream" >.board
+config-pe:
+config-hp:
+config-paym:
+config-htdb:
 
-regen-home-product:
-	$(MAKE) PROJECT=HP BOARD='Home Brand Scrum board' clean-dir view
-config-home-product:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "HP" >.project
-	echo "Home Brand Scrum board" >.board
-
-regen-home-tech-debt-bau:
-	$(MAKE) PROJECT=HTDB BOARD='Home Non-Brand Scrum Board' clean-dir view
-config-home-tech-debt-bau:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "HTDB" >.project
-	echo "Home Non-Brand Scrum Board" >.board
-
-regen-home-gdpr:
-	$(MAKE) PROJECT=HGDPR BOARD='Home GDPR Scrum board' clean-dir view
-config-home-gdpr:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "HGDPR" >.project
-	echo "Home GDPR Scrum board" >.board
-
-regen-payments:
-	$(MAKE) PROJECT=PAYM BOARD='Scrum World - Payments' clean-dir view
-config-payments:
-	echo "https://policy-expert.atlassian.net/" >.jira-url
-	echo "PAYM" >.project
-	echo "Scrum World - Payments" >.board
+config-exists-for-%:
+	@$(CONFIG_FROM_WILDCARD) >/dev/null || (echo "Project '$*' not found in configs.txt" && exit 1)
+regen-%: config-exists-for-%
+	@echo "Recalculating board $$(\
+		$(CONFIG_FROM_WILDCARD) | cut -d/ -f1) of project $$(\
+		$(CONFIG_FROM_WILDCARD) | cut -d/ -f2)."
+	$(MAKE_FROM_WILDCARD)
+config-%: config-exists-for-%
+	@$(CONFIG_FROM_WILDCARD) | cut -d/ -f1 >.project
+	@$(CONFIG_FROM_WILDCARD) | cut -d/ -f2 >.board
+	@echo "Ready to produce data for board $$(cat .board) of project $$(cat .project)."
 
 .email:
 	@echo "Please enter the email address you use to log into Jira"
@@ -177,7 +164,7 @@ clean-dir:
 	rm -rf $(DIR)
 
 clean:
-	rm -rf *_*/ augmented/ *.pdf *.csv *.json
+	rm -rf *_*/ augmented/ **/lib **/*.pdf **/*.csv **/*.json **/*.html **/*.zip
 
 cleaner:
 	git clean -xdn -e .email -e .apikey -e .project -e .board

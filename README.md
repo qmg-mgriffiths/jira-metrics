@@ -7,18 +7,18 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 ## Usage
 ### For a single project
 - (Optional) preload information for a project with one of these commands:
-  - `make config-platform`
   - `make config-car`
-  - `make config-home-product`
-  - `make config-home-tech-debt-bau`
-  - `make config-home-gdpr`
-  - `make config-payments`
+  - `make config-pe`
+  - `make config-hp`
+  - `make config-paym`
+  - `make config-htdb`
 - Run `make`
 - After this, datasets can be found within the `augmented/` subdirectory within a folder named after your project
 - Graphs will be found in `graphs.pdf` under the same folder
 - Tabular data will be found in `table-team.html` under the same folder
 - When you want to regenerate all data, for example after a new iteration, run `make regen`
-- You can generate a different team's data at any time using the above commands, notably `make config-<team>`
+- You can generate a different team's data at any time using the above commands, notably `make config-<project>` or `make regen-<project>`
+  - For these rules, any `<project>` specified in `configs.txt` may be used, case insensitively.
 
 ### For comparative data across projects
 - First, ensure projects are configured as desired
@@ -33,6 +33,7 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 
 #### Other commands
 
+- `make regen-<project>` will (re)produce data for the given team without updating configuration.
 - `make zip` will produce `metrics.zip` containing some generated data.
 - `make clean` will destroy all data for all projects
 - `make cleanest` will clear out even your configuration.
