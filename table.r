@@ -13,7 +13,7 @@ TEAM <- ifelse(length(args) >= 2,
   NA)
 
 # List of metrics for which high numbers are bad
-swap.colours <- c('Backlog points', 'Backlog stories', 'Cycle time', 'Days in progress')
+swap.colours <- c('Backlog points', 'Backlog stories', 'Cycle time', 'Days in progress', 'Story lifetime')
 
 INCL.RAW.DATA <- '--include-raw-data' %in% args
 

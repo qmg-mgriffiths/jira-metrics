@@ -56,7 +56,7 @@ row.names(corrs) <- corrs$field
 corr.graph <- ggplot(corrs, aes(x=field)) +
   geom_point(aes(y=gradient, colour=type)) +
   geom_point(aes(y=correlation, colour=type))
-# print(corr.graph)
+# optional: print(corr.graph)
 print(corrs[c('gradient', 'correlation')])
 
 line.and.smooth <- function(variable, colour) list(
@@ -124,7 +124,7 @@ ggplot(iterations[-1,], aes(x=start)) + iteration.change.graph +
 
 estimate.boxplot <- function(issues, iteration.name, all.breaks) {
   issues <- subset(issues, (is.na(iteration.name) | completed.during == iteration.name))
-  issues <- issues[c('points', 'days.in.progress')]
+  issues <- issues[c('id', 'points', 'days.in.progress')]
   issues <- subset(issues, !is.na(points) & !is.na(days.in.progress))
   issues <- issues[order(issues$points, issues$days.in.progress), ]
   issues <- issues[ issues$points %in% estimates$estimate, ]
@@ -136,6 +136,10 @@ estimate.boxplot <- function(issues, iteration.name, all.breaks) {
   if (nrow(issues) == 0)
     return(invisible())
   issues <- merge(issues, all.breaks, by.x='points', by.y='estimate', all=T, suffixes=c('','.breaks'))
+  issue.duplication <- aggregate(. ~ points + days.in.progress, issues, length)
+  names(issue.duplication) <- c('points', 'days.in.progress', 'issues')
+  issues <- merge(issues, issue.duplication, all.x=T)
+  issues[ !is.na(issues$issues) & issues$issues > 1, 'id' ] <- paste0('×', issues[ !is.na(issues$issues) & issues$issues > 1, 'issues' ])
   g <- ggplot(issues, aes(x=points, y=days.in.progress)) +
     estimate.config +
     labs(
@@ -144,9 +148,11 @@ estimate.boxplot <- function(issues, iteration.name, all.breaks) {
         ifelse(is.na(iteration.name), 'All iterations', iteration.name),
         ' (correlation: ', correlation, ')')) +
     scale_x_continuous(breaks=all.breaks$estimate) +
+    geom_smooth(method='lm', formula= y ~ x, na.rm=T, se=length(which(!is.na(issues$days.in.progress))) > 2) +
     geom_boxplot(aes(group=points), na.rm=T) +
-    geom_point(na.rm=T) +
-    geom_smooth(method='lm', formula= y ~ x, na.rm=T, se=length(which(!is.na(issues$days.in.progress))) > 2)
+    geom_boxplot(aes(group=points), na.rm=T) +
+    geom_text(aes(group=points, label=id), colour='#404040', nudge_x=0.08, hjust='left', na.rm=T) +
+    geom_point(na.rm=T) # optional: size=issues
   print(g)
   invisible()
 }
