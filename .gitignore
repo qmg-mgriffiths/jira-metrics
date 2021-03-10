@@ -6,3 +6,5 @@
 *.html
 *.zip
 lib/
+
+configs.txt

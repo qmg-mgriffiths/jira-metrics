@@ -105,18 +105,6 @@ $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
 	@echo "$(BOARD)" >$(DIR)/.board
 	./$< $(ARGS)
 
-# Autocomplete helper rules
-regen-car:
-regen-pe:
-regen-hp:
-regen-paym:
-regen-htdb:
-config-car:
-config-pe:
-config-hp:
-config-paym:
-config-htdb:
-
 config-exists-for-%:
 	@[ -f configs.txt ] || (echo "Error: no configs.txt file found." >&2 && exit 1)
 	@$(CONFIG_FROM_WILDCARD) >/dev/null || ( \
