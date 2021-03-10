@@ -135,6 +135,8 @@ def transitions(jql):
 # Retrieve metadata about a given board
 def board(name):
     details = retrieve('/rest/agile/1.0/board?' + urlencode({ 'name': name }))
+    if len(details['values']) == 0:
+        raise ValueError("Board '{}' not found".format(name))
     return details['values'][0]
 
 # Simplify the dict relating to a sprint to just store iteration info
@@ -161,7 +163,7 @@ def sprints(board_name):
 # Write a list of dicts to a CSV file
 def write_csv(filename, dataset):
     if len(dataset) == 0:
-        raise ValueError("No '{}' data available".format(filename))
+        raise ValueError("No {} available".format(filename))
     keys = dataset[0].keys()
     filename = OUTPUT_TO + '/' + filename + '.csv'
     with open(filename, 'w', newline='') as output_file:

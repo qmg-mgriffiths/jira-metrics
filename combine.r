@@ -70,5 +70,12 @@ for (f in iterations.files[-1]) {
 iterations <- tidy.iterations(iterations)
 iterations <- reshape.iterations(iterations)
 
-outpath <- ifelse(CHANGES.ONLY, 'all.iterations.csv', 'all.iterations.incl.raw.csv')
+outpath <- if (length(args) >= 3) {
+  iterations <- subset(iterations, project == args[1] & board == paste0(args[1], ': ', args[2]))
+  paste0(args[3], '/augmented/metrics.csv')
+} else if (CHANGES.ONLY) {
+  'all.iterations.csv'
+} else {
+  'all.iterations.incl.raw.csv'
+}
 write.csv(iterations, outpath, row.names=FALSE)

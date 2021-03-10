@@ -13,7 +13,7 @@ DIR=$(shell echo "$(PROJECT) $(BOARD)" | tr '[A-Z]' '[a-z]' | tr '/' ' ' | tr -d
 ARGS=$(shell [ -n "$(PROJECT)" ] && [ -n "$(BOARD)" ] && echo "'$(PROJECT)' '$(BOARD)' '$(DIR)'")
 
 # Turning configs.txt into meaningful parameters based on a passed-in wildcard
-CONFIGS=cat configs.txt | sed -E 's/ *\#.*//' | grep .
+CONFIGS=cat configs.txt 2>/dev/null | sed -E 's/ *\#.*//' | grep .
 MAKE_ARGS_FROM_CONFIG=sed -E "s|^([^/]+)/(.+)|PROJECT='\\1' BOARD='\\2'|g"
 CONFIG_FROM_PROJECT=$(CONFIGS) | awk "NR==$$($(CONFIGS) | grep -ni "^$*/" | cut -d: -f1)" 2>/dev/null
 CONFIG_FROM_NUMBER=$(CONFIGS) | awk 'NR==$*' 2>/dev/null
@@ -21,8 +21,10 @@ CONFIG_FROM_NUMBER=$(CONFIGS) | awk 'NR==$*' 2>/dev/null
 CONFIG_FROM_WILDCARD=(config=$$($(CONFIG_FROM_NUMBER)) && ([ -n "$$config" ] && echo "$$config") || $(CONFIG_FROM_PROJECT))
 MAKE_FROM_WILDCARD=$(MAKE) $(shell $(CONFIG_FROM_WILDCARD) | $(MAKE_ARGS_FROM_CONFIG))
 
-view: $(DIR)/graphs.pdf $(DIR)/table-team.html
+view view-team-visualisations: $(DIR)/graphs.pdf $(DIR)/table-team.html
 	open $^
+
+team-visualisations: $(DIR)/graphs.pdf $(DIR)/table-team.html
 
 summary: table
 summary-incl-raw: all.iterations.incl.raw.csv
@@ -31,15 +33,15 @@ summary-incl-raw: all.iterations.incl.raw.csv
 
 regen reset: clean view
 
-view-%:
-	$(MAKE_FROM_WILDCARD) view
+view-%: config-exists-for-%
+	$(MAKE_FROM_WILDCARD) view-team-visualisations
 
-preset-%:
+preset-%: config-exists-for-%
 	@echo
-	$(MAKE_FROM_WILDCARD) graphs.pdf
+	$(MAKE_FROM_WILDCARD) team-visualisations
 
-ALL_PRESETS=$(shell $(CONFIGS) | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
-all presets: $(ALL_PRESETS)
+ALL_PRESETS=$(shell ($(CONFIGS) || echo "1") | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
+all presets: $(ALL_PRESETS) table
 
 table-team: $(DIR)/table-team.html
 	open $<
@@ -53,7 +55,7 @@ metrics.zip: table.html lib */table-team.html */lib */graphs.pdf all.iterations.
 	@rm -f $@
 	zip -rq $@ $^
 
-$(DIR)/table-team.html: table.r table.*.r common.r all.iterations.incl.raw.csv
+$(DIR)/table-team.html: table.r table.*.r common.r $(DIR)/augmented/metrics.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	$(R_CUSTOM) ./$< $(ARGS)
@@ -63,7 +65,7 @@ table.html lib: table.r table.*.r common.r all.iterations.csv
 	@rm -f $@
 	$(R_CUSTOM) ./$<
 
-table-incl-raw.html: table.r table.*.r common.r all.iterations.csv
+table-incl-raw.html: table.r table.*.r common.r all.iterations.incl.raw.csv
 	@$(MAKE) docker-built
 	@rm -f $@
 	@# TODO not ready for use yet
@@ -84,6 +86,9 @@ all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/de
 all.iterations.incl.raw.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
 	./$< --include-raw-data
 	@echo "See $@ for raw and change data. Be wary of comparing raw data between teams!"
+
+$(DIR)/augmented/metrics.csv: combine.r $(DIR)/augmented/iterations.full.csv
+	./$< $(ARGS) --include-raw-data
 
 $(DIR)/augmented/iterations.full.csv: tidy.r tidy.functions.r $(DIR)/issues.csv
 	@[ -d $(@D) ] || mkdir -p $(@D)
@@ -113,12 +118,17 @@ config-paym:
 config-htdb:
 
 config-exists-for-%:
-	@$(CONFIG_FROM_WILDCARD) >/dev/null || (echo "Project '$*' not found in configs.txt" && exit 1)
+	@[ -f configs.txt ] || (echo "Error: no configs.txt file found." >&2 && exit 1)
+	@$(CONFIG_FROM_WILDCARD) >/dev/null || ( \
+		([[ "$*" =~ ^[0-9]+$$ ]] \
+			&& echo "Error: fewer than $* project(s) defined in configs.txt" >&2 \
+			|| echo "Error: project '$*' not found in configs.txt" >&2) \
+		&& exit 1)
 regen-%: config-exists-for-%
 	@echo "Recalculating board $$(\
 		$(CONFIG_FROM_WILDCARD) | cut -d/ -f1) of project $$(\
 		$(CONFIG_FROM_WILDCARD) | cut -d/ -f2)."
-	$(MAKE_FROM_WILDCARD)
+	$(MAKE_FROM_WILDCARD) -W .jira-url
 config-%: config-exists-for-%
 	@$(CONFIG_FROM_WILDCARD) | cut -d/ -f1 >.project
 	@$(CONFIG_FROM_WILDCARD) | cut -d/ -f2 >.board

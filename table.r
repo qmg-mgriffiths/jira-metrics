@@ -18,8 +18,7 @@ swap.colours <- c('Backlog points', 'Backlog stories', 'Cycle time', 'Days in pr
 INCL.RAW.DATA <- '--include-raw-data' %in% args
 
 df <- if (!is.na(TEAM)) {
-  full.df <- read.csv('all.iterations.incl.raw.csv')
-  subset(full.df, board == TEAM)
+  read.csv(paste0(args[3], '/augmented/metrics.csv'))
 } else if (INCL.RAW.DATA) {
   cat("Warning: all data is currently output as percentages, even when absolute.\n")
   read.csv('all.iterations.incl.raw.csv')
