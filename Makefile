@@ -1,8 +1,10 @@
 SHELL=/bin/bash
 
 R=docker run -i --rm -v $$PWD:/host -w /host r-base:4.0.0
-DOCKER_TAG_R=r-jira-stats:0.0.1
-R_CUSTOM=docker run -i --rm -v $$PWD:/host -w /host $(DOCKER_TAG_R)
+DOCKER_TAG_R=r-jira-stats:0.0.2
+DOCKER_TAG_PYTHON=python-jira-stats:0.0.1
+R_CUSTOM=docker run -i --rm -v $$PWD:/host $(DOCKER_TAG_R)
+PYTHON=docker run -ti --rm --net host -v $$PWD:/host $(DOCKER_TAG_PYTHON)
 
 # Configuration for users wanting just one board's stats
 PROJECT_CONFIG=.project .board
@@ -58,39 +60,44 @@ metrics.zip: table.html lib */table-team.html */lib */graphs.pdf all.iterations.
 	zip -rq $@ $^
 
 $(DIR)/table-team.html: table.r table.*.r common.r $(DIR)/augmented/metrics.csv
-	@$(MAKE) docker-built
+	@$(MAKE) docker-built-r
 	@rm -f $@
 	$(R_CUSTOM) ./$< $(ARGS)
 
 table.html lib: table.r table.*.r common.r all.iterations.csv
-	@$(MAKE) docker-built
+	@$(MAKE) docker-built-r
 	@rm -f $@
 	$(R_CUSTOM) ./$<
 
 table-incl-raw.html: table.r table.*.r common.r all.iterations.incl.raw.csv
-	@$(MAKE) docker-built
+	@$(MAKE) docker-built-r
 	@rm -f $@
 	@# TODO not ready for use yet
 	$(R_CUSTOM) ./$< --include-raw-data
 
-docker-built:
-	@[ -n "$$(docker images $(DOCKER_TAG_R) -q)" ] || $(MAKE) build-docker
+docker-built-r:
+	@[ -n "$$(docker images $(DOCKER_TAG_R) -q)" ] || $(MAKE) build-docker-r
+docker-built-python:
+	@[ -n "$$(docker images $(DOCKER_TAG_PYTHON) -q)" ] || $(MAKE) build-docker-python
 
-build-docker:
-	@echo "Building docker image. This can take up to ten minutes." >&2
-	docker build -t $(DOCKER_TAG_R) .
+build-docker-r:
+	@echo "Building docker image for R. This can take up to ten minutes." >&2
+	docker build -f Dockerfile-r -t $(DOCKER_TAG_R) .
+build-docker-python:
+	@echo "Building docker image for Python." >&2
+	docker build -f Dockerfile-python -t $(DOCKER_TAG_PYTHON) .
 
 regen-all regen-presets reset-all reset-presets: clean presets summary
 	@echo "Data for all teams is now available."
 all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
-	./$<
+	$(R) ./$<
 	@echo "Combined data for all projects can now be found in: $@"
 all.iterations.incl.raw.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
-	./$< --include-raw-data
+	$(R) ./$< --include-raw-data
 	@echo "See $@ for raw and change data. Be wary of comparing raw data between teams!"
 
 $(DIR)/augmented/metrics.csv: combine.r $(DIR)/augmented/iterations.full.csv
-	./$< $(ARGS) --include-raw-data
+	$(R) ./$< $(ARGS) --include-raw-data
 
 $(DIR)/augmented/iterations.full.csv: tidy.r tidy.functions.r $(DIR)/issues.csv
 	@[ -d $(@D) ] || mkdir -p $(@D)
@@ -98,7 +105,7 @@ $(DIR)/augmented/iterations.full.csv: tidy.r tidy.functions.r $(DIR)/issues.csv
 
 graphs.pdf: $(DIR)/graphs.pdf
 $(DIR)/graphs.pdf: graph.r $(DIR)/augmented/iterations.full.csv
-	@$(MAKE) docker-built
+	@$(MAKE) docker-built-r
 	$(R_CUSTOM) ./$< $(ARGS)
 
 $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
@@ -107,7 +114,8 @@ $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
 	@[ -d $(DIR) ] || mkdir $(DIR)
 	@echo "$(PROJECT)" >$(DIR)/.project
 	@echo "$(BOARD)" >$(DIR)/.board
-	./$< $(ARGS)
+	@$(MAKE) docker-built-python
+	$(PYTHON) ./$< $(ARGS)
 
 config-exists-for-%:
 	@[ -f configs.txt ] || (echo "Error: no configs.txt file found." >&2 && exit 1)

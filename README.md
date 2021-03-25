@@ -6,7 +6,6 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 
 ## Requirements
 - Docker
-- Python 3
 - A [Jira API key](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 ## Usage
