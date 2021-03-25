@@ -1,3 +1,5 @@
+SHELL=/bin/bash
+
 R=docker run -i --rm -v $$PWD:/host -w /host r-base:4.0.0
 DOCKER_TAG_R=r-jira-stats:0.0.1
 R_CUSTOM=docker run -i --rm -v $$PWD:/host -w /host $(DOCKER_TAG_R)
@@ -100,6 +102,8 @@ $(DIR)/graphs.pdf: graph.r $(DIR)/augmented/iterations.full.csv
 	$(R_CUSTOM) ./$< $(ARGS)
 
 $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
+	@$(MAKE) -q $(PROJECT_CONFIG) || ($(MAKE) $(PROJECT_CONFIG) && \
+		echo && echo "Ready to retrieve data: please rerun this command." && exit 1)
 	@[ -d $(DIR) ] || mkdir $(DIR)
 	@echo "$(PROJECT)" >$(DIR)/.project
 	@echo "$(BOARD)" >$(DIR)/.board
