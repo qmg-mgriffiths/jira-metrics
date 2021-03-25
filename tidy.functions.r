@@ -63,7 +63,7 @@ add.cycle.times <- function(issues, transitions) {
   date.done <- as.POSIXct(issues[[paste0('date.', pick.done.column(transitions))]])
   date.in.progress <- as.POSIXct(issues[[paste0('date.', pick.in.progress.column(transitions))]])
   # Time between In Progress and Done is one of our more interesting stats
-  issues$days.in.progress <- as.numeric(date.done - date.in.progress) / 86400
+  issues$days.in.progress <- as.numeric(difftime(date.done, date.in.progress, units='days'))
 
   straight.to.done <- which(!is.na(date.done) & is.na(issues[['days.in.progress']]))
   if (length(straight.to.done) > 0) {
@@ -72,7 +72,8 @@ add.cycle.times <- function(issues, transitions) {
     print(head(issues[straight.to.done, c('id', 'type', 'date.Done')]))
   }
   # Time from creation to completion is also potentially interesting
-  issues$story.lifetime <- as.numeric(date.done - as.POSIXct(issues$created))
+  issues$story.lifetime <- as.numeric(difftime(date.done, as.POSIXct(issues$created), units='days'))
+
   issues
 }
 
