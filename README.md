@@ -10,7 +10,7 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 
 ## Usage
 ### For a single project
-- (Optional) preload information for a project
+- Set up configuration for your project
   - See '[Preloading configuration](#preloading-configuration)' below
 - Run `make`
   - You will be prompted for configuration if needed
@@ -24,10 +24,9 @@ Generates `.csv` datasets and `.pdf` graphs relating to iterations, issues and t
 ### For comparative data across projects
 - First, ensure projects are configured as desired in `configs.txt`
   - See '[Preloading configuration](#preloading-configuration)' below
-- Run `make summary` or `make table`
-  - This will retrieve data for all boards in `config.txt`, and combine them into `all.iterations.csv`
-  - The data in that `.csv` can be more easily viewed in your browser via `table.html`
-  - Note: this only tracks the percentage _changes_ between metrics' values across iterations. `make summary-incl-raw` will include the raw values too - but be aware of the limitations of trying to compare raw data between teams!
+- Run `make compare-teams`
+  - This will retrieve data for all boards in `config.txt`, combine them into `all.iterations.csv`, produce `table.html` as an easier way to view the data, and open `table.html` in your browser
+  - Note: this only tracks the percentage _changes_ between metrics' values across iterations. Running `make summary-incl-raw` after the above will produce a datafile with raw values too - but be aware of the limitations of trying to compare raw data between teams!
 - To regenerate any and all datasets (e.g. after a team completes an iteration), run `make reset-all`
 
 ### Preloading configuration
@@ -39,7 +38,7 @@ Each line of `configs.txt` should be in the format `<project>/<board>`, where:
   - `project` is the JIRA internal name: it should be visible in your URL bar as `projectKey=<project>` when viewing the relevant board
   - `board` is the human-friendly board name: it should be visible in the [breadcrumbs](https://en.wikipedia.org/wiki/Breadcrumb_navigation#Websites) when viewing the board's page
 
-Running `make config-<project>` with any `<project>` in `configs.txt` will select it for future `make` or `make view` commands.
+By default, running `make` will produce and display data for the first team listed in `configs.txt`
 
 #### Other commands
 

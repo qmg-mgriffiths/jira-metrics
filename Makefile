@@ -25,15 +25,13 @@ CONFIG_FROM_NUMBER=$(CONFIGS) | awk 'NR==$*' 2>/dev/null
 CONFIG_FROM_WILDCARD=(config=$$($(CONFIG_FROM_NUMBER)) && ([ -n "$$config" ] && echo "$$config") || $(CONFIG_FROM_PROJECT))
 MAKE_FROM_WILDCARD=$(MAKE) $(shell $(CONFIG_FROM_WILDCARD) | $(MAKE_ARGS_FROM_CONFIG))
 
+# Default rule: generate and view data for the first team in configs.txt
+view-1:
+
 view view-team-visualisations: $(DIR)/graphs.pdf $(DIR)/table-team.html
 	open $^
 
-team-visualisations: $(DIR)/graphs.pdf $(DIR)/table-team.html
-
-summary: table
-summary-incl-raw: all.iterations.incl.raw.csv
-	@echo "Note: tabular presentation is not yet available for raw data." >&2
-	@echo "See ./$< for the dataset itself." >&2
+generate-team-visualisations: $(DIR)/graphs.pdf $(DIR)/table-team.html
 
 regen reset: clean view
 
@@ -42,16 +40,19 @@ view-%: config-exists-for-%
 
 preset-%: config-exists-for-%
 	@echo
-	$(MAKE_FROM_WILDCARD) team-visualisations
+	$(MAKE_FROM_WILDCARD) generate-team-visualisations
 
 ALL_PRESETS=$(shell ($(CONFIGS) || echo "1") | grep . -n | cut -d: -f1 | sed "s/.*/preset-&/")
-all presets: $(ALL_PRESETS) table
+all all-teams compare-teams presets: $(ALL_PRESETS) comparison-table
 
 table-team: $(DIR)/table-team.html
 	open $<
-table: table.html
+comparison-table summary table: table.html
 	open $<
-table-incl-raw: table-incl-raw.html
+summary-incl-raw: all.iterations.incl.raw.csv
+	@echo "Note: tabular presentation is not yet available for raw data." >&2
+	@echo "See ./$< for the dataset itself." >&2
+comparison-table-incl-raw table-incl-raw: table-incl-raw.html
 	open $<
 
 zip: metrics.zip
@@ -87,7 +88,7 @@ build-docker-python:
 	@echo "Building docker image for Python." >&2
 	docker build -f Dockerfile-python -t $(DOCKER_TAG_PYTHON) .
 
-regen-all regen-presets reset-all reset-presets: clean presets summary
+regen-all regen-presets reset-all reset-presets: clean compare-teams
 	@echo "Data for all teams is now available."
 all.iterations.csv: combine.r $(shell ls *_*/augmented/iterations.full.csv 2>/dev/null || echo "$(DIR)/augmented/iterations.full.csv")
 	$(R) ./$<
@@ -109,8 +110,8 @@ $(DIR)/graphs.pdf: graph.r $(DIR)/augmented/iterations.full.csv
 	$(R_CUSTOM) ./$< $(ARGS)
 
 $(DIR)/issues.csv: retrieve.py $(BASE_CONFIG)
-	@$(MAKE) -q $(PROJECT_CONFIG) || ($(MAKE) $(PROJECT_CONFIG) && \
-		echo && echo "Ready to retrieve data: please rerun this command." && exit 1)
+	@([[ -n "$(PROJECT)" ]] && [[ -n "$(BOARD)" ]]) || ( \
+		echo "No configuration found: please run 'make' or 'make-<project>'." && exit 1)
 	@[ -d $(DIR) ] || mkdir $(DIR)
 	@echo "$(PROJECT)" >$(DIR)/.project
 	@echo "$(BOARD)" >$(DIR)/.board
@@ -174,7 +175,7 @@ clean-dir:
 	rm -rf $(DIR)
 
 clean:
-	rm -rf *_*/ augmented/ **/lib **/*.pdf **/*.csv **/*.json **/*.html **/*.zip
+	rm -rf *_*/ augmented/ lib **/lib **/*.pdf **/*.csv **/*.json **/*.html **/*.zip
 
 cleaner:
 	git clean -xdn -e .email -e .apikey -e .project -e .board
